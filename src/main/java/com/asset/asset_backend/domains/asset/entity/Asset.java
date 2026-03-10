@@ -81,4 +81,8 @@ public class Asset {
             this.amount += this.monthlyPayment;
         }
     }
+
+    public void updateAmount(Long amount) {
+        this.amount = amount;
+    }
 }

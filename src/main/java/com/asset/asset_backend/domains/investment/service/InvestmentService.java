@@ -100,4 +100,23 @@ public class InvestmentService {
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND, "Investment ID: " + id));
         investmentRepository.delete(investment);
     }
+
+    @Transactional
+    public void syncAssetAmount(Long assetId) {
+        Asset asset = assetRepository.findById(assetId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND, "Asset ID: " + assetId));
+
+        Long totalAmount = investmentRepository.findByAssetId(assetId).stream()
+                .mapToLong(inv -> {
+                    Long currentPrice = stockPriceService.getCurrentPrice(inv.getTicker());
+                    if (currentPrice == null || inv.getQuantity() == null) {
+                        // 현재가 조회 실패 시 purchaseAmount로 fallback
+                        return inv.getPurchaseAmount() != null ? inv.getPurchaseAmount() : 0L;
+                    }
+                    return currentPrice * inv.getQuantity();
+                })
+                .sum();
+
+        asset.updateAmount(totalAmount);
+    }
 }
