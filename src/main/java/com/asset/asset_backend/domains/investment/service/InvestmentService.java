@@ -1,0 +1,103 @@
+package com.asset.asset_backend.domains.investment.service;
+
+import com.asset.asset_backend.common.exception.BaseException;
+import com.asset.asset_backend.common.exception.ErrorCode;
+import com.asset.asset_backend.domains.asset.entity.Asset;
+import com.asset.asset_backend.domains.asset.repository.AssetRepository;
+import com.asset.asset_backend.domains.investment.dto.request.InvestmentCreateRequest;
+import com.asset.asset_backend.domains.investment.dto.request.InvestmentUpdateRequest;
+import com.asset.asset_backend.domains.investment.dto.response.InvestmentResponse;
+import com.asset.asset_backend.domains.investment.entity.Investment;
+import com.asset.asset_backend.domains.investment.repository.InvestmentRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class InvestmentService {
+
+    private final InvestmentRepository investmentRepository;
+    private final AssetRepository assetRepository;
+    private final StockPriceService stockPriceService;
+
+    @Transactional
+    public InvestmentResponse createInvestment(InvestmentCreateRequest request) {
+        Asset asset = assetRepository.findById(request.getAssetId())
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND, "Asset ID: " + request.getAssetId()));
+
+        Investment investment = Investment.createInvestment(
+                asset,
+                request.getCategory(),
+                request.getStockName(),
+                request.getTicker(),
+                request.getOwner(),
+                request.getPurchasePrice(),
+                request.getQuantity(),
+                request.getPurchaseAmount()
+        );
+        Investment saved = investmentRepository.save(investment);
+        Long currentPrice = stockPriceService.getCurrentPrice(saved.getTicker());
+        return InvestmentResponse.from(saved, currentPrice);
+    }
+
+    public Page<InvestmentResponse> searchInvestments(String owner, String category, Pageable pageable) {
+        Page<Investment> investmentPage = investmentRepository.searchInvestments(owner, category, pageable);
+
+        List<InvestmentResponse> responses = investmentPage.getContent().stream()
+                .map(inv -> InvestmentResponse.from(inv, stockPriceService.getCurrentPrice(inv.getTicker())))
+                .toList();
+
+        return new PageImpl<>(responses, pageable, investmentPage.getTotalElements());
+    }
+
+    public InvestmentResponse getInvestmentById(Long id) {
+        Investment investment = investmentRepository.findById(id)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND, "Investment ID: " + id));
+        return InvestmentResponse.from(investment, stockPriceService.getCurrentPrice(investment.getTicker()));
+    }
+
+    public List<InvestmentResponse> getInvestmentsByAssetId(Long assetId) {
+        return investmentRepository.findByAssetId(assetId).stream()
+                .map(inv -> InvestmentResponse.from(inv, stockPriceService.getCurrentPrice(inv.getTicker())))
+                .toList();
+    }
+
+    @Transactional
+    public InvestmentResponse updateInvestment(Long id, InvestmentUpdateRequest request) {
+        Investment investment = investmentRepository.findById(id)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND, "Investment ID: " + id));
+
+        Asset asset = null;
+        if (request.getAssetId() != null) {
+            asset = assetRepository.findById(request.getAssetId())
+                    .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND, "Asset ID: " + request.getAssetId()));
+        }
+
+        investment.updateInvestmentInfo(
+                asset,
+                request.getCategory(),
+                request.getStockName(),
+                request.getTicker(),
+                request.getOwner(),
+                request.getPurchasePrice(),
+                request.getQuantity(),
+                request.getPurchaseAmount()
+        );
+
+        return InvestmentResponse.from(investment, stockPriceService.getCurrentPrice(investment.getTicker()));
+    }
+
+    @Transactional
+    public void deleteInvestment(Long id) {
+        Investment investment = investmentRepository.findById(id)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND, "Investment ID: " + id));
+        investmentRepository.delete(investment);
+    }
+}
