@@ -22,7 +22,9 @@ jobs:
 
       # 3. Spring Boot 빌드 (테스트 스킵)
       - name: Build with Gradle
-        run: ./gradlew clean build -x test
+        run: |
+          chmod +x ./gradlew
+          ./gradlew clean build -x test
 
       # 4. Docker Hub 로그인
       - name: Login to Docker Hub
