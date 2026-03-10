@@ -35,3 +35,7 @@ out/
 
 ### VS Code ###
 .vscode/
+
+**.gitignore에 추가**
+```
+src/main/resources/application.yml
