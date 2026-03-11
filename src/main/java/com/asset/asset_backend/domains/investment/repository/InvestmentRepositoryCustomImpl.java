@@ -17,14 +17,15 @@ public class InvestmentRepositoryCustomImpl implements InvestmentRepositoryCusto
     private final JPAQueryFactory queryFactory;
 
     @Override
-    public Page<Investment> searchInvestments(String owner, String category, Pageable pageable) {
+    public Page<Investment> searchInvestments(String owner, String category, Long assetId, Pageable pageable) {
         QInvestment investment = QInvestment.investment;
 
         List<Investment> investments = queryFactory
                 .selectFrom(investment)
                 .where(
                         eqOwner(owner),
-                        containsCategory(category)
+                        containsCategory(category),
+                        eqAssetId(assetId)
                 )
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
@@ -40,6 +41,9 @@ public class InvestmentRepositoryCustomImpl implements InvestmentRepositoryCusto
                 .fetchOne();
 
         return new PageImpl<>(investments, pageable, total != null ? total : 0);
+    }
+    private BooleanExpression eqAssetId(Long assetId) {
+        return assetId != null ? QInvestment.investment.asset.id.eq(assetId) : null;
     }
 
     private BooleanExpression eqOwner(String owner) {

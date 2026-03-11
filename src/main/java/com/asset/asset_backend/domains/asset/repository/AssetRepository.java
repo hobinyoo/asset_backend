@@ -16,16 +16,16 @@ public interface AssetRepository extends JpaRepository<Asset, Long>, AssetReposi
     Integer findMaxSortOrder();
 
     // 위로 이동할 때: target ~ current-1 사이 항목들 +1 (밀어내기)
-    // ex) 5번 → 2번으로: 2,3,4번이 3,4,5번으로
-    @Modifying
-    @Query("UPDATE Asset a SET a.sortOrder = a.sortOrder + 1 WHERE a.sortOrder >= :targetPosition AND a.sortOrder < :currentPosition")
-    void incrementSortOrderBetween(@Param("targetPosition") Integer targetPosition,
-                                   @Param("currentPosition") Integer currentPosition);
+// ex) 5번 → 2번으로: 2,3,4번이 3,4,5번으로
+@Modifying
+@Query("UPDATE Asset a SET a.sortOrder = a.sortOrder + 1 WHERE a.sortOrder >= :targetPosition AND a.sortOrder < :currentPosition")
+void incrementSortOrderBetween(@Param("targetPosition") Integer targetPosition,
+                               @Param("currentPosition") Integer currentPosition);
 
-    // 아래로 이동할 때: current+1 ~ target 사이 항목들 -1 (당기기)
-    // ex) 2번 → 5번으로: 3,4,5번이 2,3,4번으로
-    @Modifying
-    @Query("UPDATE Asset a SET a.sortOrder = a.sortOrder - 1 WHERE a.sortOrder > :currentPosition AND a.sortOrder <= :targetPosition")
-    void decrementSortOrderBetween(@Param("currentPosition") Integer currentPosition,
-                                   @Param("targetPosition") Integer targetPosition);
+// 아래로 이동할 때: current+1 ~ target 사이 항목들 -1 (당기기)
+// ex) 2번 → 5번으로: 3,4,5번이 2,3,4번으로
+@Modifying
+@Query("UPDATE Asset a SET a.sortOrder = a.sortOrder - 1 WHERE a.sortOrder > :currentPosition AND a.sortOrder <= :targetPosition")
+void decrementSortOrderBetween(@Param("currentPosition") Integer currentPosition,
+                               @Param("targetPosition") Integer targetPosition);
 }

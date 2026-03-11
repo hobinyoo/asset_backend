@@ -36,11 +36,12 @@ public class InvestmentController {
     public ResponseEntity<ApiResult<ApiPageResponse<InvestmentResponse>>> getInvestments(
             @RequestParam(required = false) String owner,
             @RequestParam(required = false) String category,
+            @RequestParam(required = false) Long  assetId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
         Pageable pageable = PageRequest.of(page, size);
-        Page<InvestmentResponse> investmentPage = investmentService.searchInvestments(owner, category, pageable);
+        Page<InvestmentResponse> investmentPage = investmentService.searchInvestments(owner, category, assetId, pageable);
 
         return ResponseEntity.ok(
                 ApiResult.success(ApiPageResponse.of(investmentPage, investmentPage.getContent()), "투자 목록을 조회했습니다.")

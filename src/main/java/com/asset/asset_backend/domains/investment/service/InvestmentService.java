@@ -47,8 +47,8 @@ public class InvestmentService {
         return InvestmentResponse.from(saved, currentPrice);
     }
 
-    public Page<InvestmentResponse> searchInvestments(String owner, String category, Pageable pageable) {
-        Page<Investment> investmentPage = investmentRepository.searchInvestments(owner, category, pageable);
+    public Page<InvestmentResponse> searchInvestments(String owner, String category, Long assetId, Pageable pageable) {
+        Page<Investment> investmentPage = investmentRepository.searchInvestments(owner, category, assetId, pageable);
 
         List<InvestmentResponse> responses = investmentPage.getContent().stream()
                 .map(inv -> InvestmentResponse.from(inv, stockPriceService.getCurrentPrice(inv.getTicker())))
