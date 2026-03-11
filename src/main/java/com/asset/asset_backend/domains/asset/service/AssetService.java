@@ -6,6 +6,7 @@ import com.asset.asset_backend.common.exception.ErrorCode;
 import com.asset.asset_backend.domains.asset.dto.request.AssetCreateRequest;
 import com.asset.asset_backend.domains.asset.dto.request.AssetReorderRequest;
 import com.asset.asset_backend.domains.asset.dto.request.AssetUpdateRequest;
+import com.asset.asset_backend.domains.asset.dto.response.AssetSummaryResponse;
 import com.asset.asset_backend.domains.asset.entity.Asset;
 
 import com.asset.asset_backend.domains.asset.repository.AssetRepository;
@@ -94,5 +95,11 @@ public class AssetService {
         }
 
         asset.updateSortOrder(targetPosition);
+    }
+
+    public AssetSummaryResponse getSummary() {
+        Long totalAmount = assetRepository.sumAllAmount();
+        Long totalMonthlyPayment = assetRepository.sumAllMonthlyPayment();
+        return AssetSummaryResponse.from(totalAmount, totalMonthlyPayment);
     }
 }

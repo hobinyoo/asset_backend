@@ -8,6 +8,7 @@ import com.asset.asset_backend.domains.asset.dto.request.AssetCreateRequest;
 import com.asset.asset_backend.domains.asset.dto.request.AssetReorderRequest;
 import com.asset.asset_backend.domains.asset.dto.request.AssetUpdateRequest;
 import com.asset.asset_backend.domains.asset.dto.response.AssetResponse;
+import com.asset.asset_backend.domains.asset.dto.response.AssetSummaryResponse;
 import com.asset.asset_backend.domains.asset.entity.Asset;
 import com.asset.asset_backend.domains.asset.service.AssetService;
 import lombok.RequiredArgsConstructor;
@@ -129,5 +130,17 @@ public class AssetController {
             @RequestBody AssetReorderRequest request) {
         assetService.reorderAsset(id, request);
         return ResponseEntity.ok(ApiResult.success(null, "순서가 변경되었습니다."));
+    }
+
+    /**
+     * 자산 요약 정보 조회
+     * GET /api/assets/summary
+     */
+    @GetMapping("/summary")
+    public ResponseEntity<ApiResult<AssetSummaryResponse>> getSummary() {
+        AssetSummaryResponse summary = assetService.getSummary();
+        return ResponseEntity.ok(
+                ApiResult.success(summary, "자산 요약을 조회했습니다.")
+        );
     }
 }

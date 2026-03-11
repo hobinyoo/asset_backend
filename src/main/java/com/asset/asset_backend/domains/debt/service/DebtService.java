@@ -6,6 +6,7 @@ import com.asset.asset_backend.common.exception.BaseException;
 import com.asset.asset_backend.common.exception.ErrorCode;
 import com.asset.asset_backend.domains.debt.dto.request.DebtCreateRequest;
 import com.asset.asset_backend.domains.debt.dto.request.DebtUpdateRequest;
+import com.asset.asset_backend.domains.debt.dto.response.DebtSummaryResponse;
 import com.asset.asset_backend.domains.debt.entity.Debt;
 import com.asset.asset_backend.domains.debt.repository.DebtRepository;
 import lombok.RequiredArgsConstructor;
@@ -65,5 +66,11 @@ public class DebtService {
     public void deleteDebt(Long id) {
         Debt debt = getDebtById(id);
         debtRepository.delete(debt);
+    }
+
+    public DebtSummaryResponse getSummary() {
+        Long totalAmount = debtRepository.sumAllAmount();
+        Long totalMonthlyPayment = debtRepository.sumAllMonthlyPayment();
+        return DebtSummaryResponse.from(totalAmount, totalMonthlyPayment);
     }
 }

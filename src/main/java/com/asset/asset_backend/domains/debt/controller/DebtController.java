@@ -8,6 +8,7 @@ import com.asset.asset_backend.common.scheduler.DebtPaymentScheduler;
 import com.asset.asset_backend.domains.debt.dto.request.DebtCreateRequest;
 import com.asset.asset_backend.domains.debt.dto.request.DebtUpdateRequest;
 import com.asset.asset_backend.domains.debt.dto.response.DebtResponse;
+import com.asset.asset_backend.domains.debt.dto.response.DebtSummaryResponse;
 import com.asset.asset_backend.domains.debt.entity.Debt;
 import com.asset.asset_backend.domains.debt.service.DebtService;
 import lombok.RequiredArgsConstructor;
@@ -87,5 +88,13 @@ public class DebtController {
     public ResponseEntity<ApiResult<Void>> deleteDebt(@PathVariable Long id) {
         debtService.deleteDebt(id);
         return ResponseEntity.ok(ApiResult.success(null, "부채가 삭제되었습니다."));
+    }
+
+    @GetMapping("/summary")
+    public ResponseEntity<ApiResult<DebtSummaryResponse>> getSummary() {
+        DebtSummaryResponse summary = debtService.getSummary();
+        return ResponseEntity.ok(
+                ApiResult.success(summary, "부채 요약을 조회했습니다.")
+        );
     }
 }
