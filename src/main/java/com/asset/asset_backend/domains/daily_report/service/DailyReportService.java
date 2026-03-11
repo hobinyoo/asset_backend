@@ -85,6 +85,8 @@ public class DailyReportService {
                   <h2>오늘의 액션</h2>
                   <p><!-- 구체적인 투자 액션 제안 --></p>
                 </section>
+                
+                응답은 반드시 3000토큰 이내로 작성하세요.
                 """, date, stockInfo);
 
         // 카톡 요약 - 포맷 고정

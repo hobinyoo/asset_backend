@@ -34,7 +34,7 @@ public class ClaudeApiService {
 
             Map<String, Object> body = Map.of(
                     "model", MODEL,
-                    "max_tokens", 2000,
+                    "max_tokens", 3000,
                     "messages", List.of(
                             Map.of("role", "user", "content", prompt)
                     )
