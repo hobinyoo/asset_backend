@@ -21,7 +21,7 @@ public class CorsConfig {
                                 "https://yoojoo-asset-management.xyz",
                                 "https://asset-frontend-dusky.vercel.app"
                         )
-                        .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                        .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS","PATCH")
                         .allowedHeaders("*");
             }
         };

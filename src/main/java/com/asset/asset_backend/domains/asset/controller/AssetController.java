@@ -5,6 +5,7 @@ import com.asset.asset_backend.common.response.ApiPageResponse;
 import com.asset.asset_backend.common.response.ApiResult;
 import com.asset.asset_backend.common.scheduler.AssetPaymentScheduler;
 import com.asset.asset_backend.domains.asset.dto.request.AssetCreateRequest;
+import com.asset.asset_backend.domains.asset.dto.request.AssetReorderRequest;
 import com.asset.asset_backend.domains.asset.dto.request.AssetUpdateRequest;
 import com.asset.asset_backend.domains.asset.dto.response.AssetResponse;
 import com.asset.asset_backend.domains.asset.entity.Asset;
@@ -116,5 +117,17 @@ public class AssetController {
                 .map(AssetResponse::from)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(ApiResult.success(responses, "투자 연동 자산 목록을 조회했습니다."));
+    }
+
+    /**
+     * 자산 순서 변경
+     * PATCH /api/assets/{id}/reorder
+     */
+    @PatchMapping("/{id}/reorder")
+    public ResponseEntity<ApiResult<Void>> reorderAsset(
+            @PathVariable Long id,
+            @RequestBody AssetReorderRequest request) {
+        assetService.reorderAsset(id, request);
+        return ResponseEntity.ok(ApiResult.success(null, "순서가 변경되었습니다."));
     }
 }

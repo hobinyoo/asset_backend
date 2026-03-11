@@ -40,6 +40,10 @@ public class Asset {
 
     private Boolean linkedToInvestment; // 투자 시트 연결 여부 (IRP, KB증권 등)
 
+    @Column(nullable = false)
+    private Integer sortOrder;
+
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
@@ -50,7 +54,7 @@ public class Asset {
     // ✅ 생성 메서드
     public static Asset createAsset(String category, String owner, Long amount,
                                     AssetType type, Long monthlyPayment, Integer paymentDay,
-                                    String note, Boolean linkedToInvestment) {
+                                    String note, Boolean linkedToInvestment,Integer sortOrder) {
         Asset asset = new Asset();
         asset.category = category;
         asset.owner = owner;
@@ -60,6 +64,7 @@ public class Asset {
         asset.paymentDay = paymentDay;
         asset.note = note;
         asset.linkedToInvestment = linkedToInvestment != null && linkedToInvestment;
+        asset.sortOrder = sortOrder;
         return asset;
     }
 
@@ -74,6 +79,10 @@ public class Asset {
         if (paymentDay != null) this.paymentDay = paymentDay;
         if (note != null) this.note = note;
         if (linkedToInvestment != null) this.linkedToInvestment = linkedToInvestment;
+    }
+
+    public void updateSortOrder(Integer sortOrder) {
+        this.sortOrder = sortOrder;
     }
 
     public void addMonthlyPayment() {

@@ -30,6 +30,7 @@ public class AssetRepositoryCustomImpl implements AssetRepositoryCustom {
                         eqOwner(owner),
                         eqType(type)
                 )
+                .orderBy(asset.sortOrder.asc())
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
                 .fetch();
