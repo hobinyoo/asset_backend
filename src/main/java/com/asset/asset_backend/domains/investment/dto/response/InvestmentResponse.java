@@ -1,5 +1,6 @@
 package com.asset.asset_backend.domains.investment.dto.response;
 
+import com.asset.asset_backend.common.enums.MarketType;
 import com.asset.asset_backend.domains.investment.entity.Investment;
 import lombok.Builder;
 import lombok.Getter;
@@ -17,34 +18,42 @@ public class InvestmentResponse {
     private Long purchasePrice;
     private Long quantity;
     private Long purchaseAmount;
-    private Long currentPrice;
-    private Long evaluationAmount;
+    private MarketType marketType;
+    private Long currentPrice;      // 원본 가격 (OVERSEAS: USD, DOMESTIC: KRW)
+    private Double exchangeRate;    // USD→KRW 환율 (OVERSEAS만, 나머지 null)
+    private Long evaluationAmount;  // 항상 KRW
     private Double profitRate;
     private String createdAt;
     private String updatedAt;
 
-    public static InvestmentResponse from(Investment inv, Long currentPrice) {
+    public static InvestmentResponse from(Investment inv, Long currentPrice, Double exchangeRate) {
         Long buyAmt = inv.getPurchaseAmount() != null
                 ? inv.getPurchaseAmount()
                 : (inv.getPurchasePrice() != null && inv.getQuantity() != null
                 ? inv.getPurchasePrice() * inv.getQuantity() : null);
 
+        // OVERSEAS: currentPrice(USD) * exchangeRate → KRW로 환산
+        Long currentPriceKrw = currentPrice;
+        if (inv.getMarketType() == MarketType.OVERSEAS && currentPrice != null && exchangeRate != null) {
+            currentPriceKrw = Math.round(currentPrice * exchangeRate);
+        }
+
         Long evaluationAmount = null;
-        if (currentPrice != null) {
+        if (currentPriceKrw != null) {
             evaluationAmount = inv.getQuantity() != null
-                    ? currentPrice * inv.getQuantity()
-                    : currentPrice;
+                    ? currentPriceKrw * inv.getQuantity()
+                    : currentPriceKrw;
         }
 
         Double profitRate = null;
         if (buyAmt != null && buyAmt > 0 && evaluationAmount != null) {
-            profitRate = (double)(evaluationAmount - buyAmt) / buyAmt * 100;
+            profitRate = Math.round((double)(evaluationAmount - buyAmt) / buyAmt * 10000.0) / 100.0;
         }
 
         return InvestmentResponse.builder()
                 .id(inv.getId())
                 .assetId(inv.getAsset() != null ? inv.getAsset().getId() : null)
-                .account(inv.getAsset() != null ? inv.getAsset().getCategory() : null) // 항상 최신값
+                .account(inv.getAsset() != null ? inv.getAsset().getCategory() : null)
                 .category(inv.getCategory())
                 .stockName(inv.getStockName())
                 .ticker(inv.getTicker())
@@ -52,7 +61,9 @@ public class InvestmentResponse {
                 .purchasePrice(inv.getPurchasePrice())
                 .quantity(inv.getQuantity())
                 .purchaseAmount(buyAmt)
+                .marketType(inv.getMarketType())
                 .currentPrice(currentPrice)
+                .exchangeRate(inv.getMarketType() == MarketType.OVERSEAS ? exchangeRate : null)
                 .evaluationAmount(evaluationAmount)
                 .profitRate(profitRate)
                 .createdAt(inv.getCreatedAt() != null ? inv.getCreatedAt().toString() : null)

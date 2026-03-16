@@ -1,5 +1,6 @@
 package com.asset.asset_backend.domains.investment.dto.request;
 
+import com.asset.asset_backend.common.enums.MarketType;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -14,4 +15,5 @@ public class InvestmentUpdateRequest {
     private Long purchasePrice;
     private Long quantity;
     private Long purchaseAmount;
+    private MarketType marketType;
 }

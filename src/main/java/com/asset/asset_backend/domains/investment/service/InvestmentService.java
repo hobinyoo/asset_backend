@@ -1,5 +1,6 @@
 package com.asset.asset_backend.domains.investment.service;
 
+import com.asset.asset_backend.common.enums.MarketType;
 import com.asset.asset_backend.common.exception.BaseException;
 import com.asset.asset_backend.common.exception.ErrorCode;
 import com.asset.asset_backend.domains.asset.entity.Asset;
@@ -26,6 +27,7 @@ public class InvestmentService {
     private final InvestmentRepository investmentRepository;
     private final AssetRepository assetRepository;
     private final StockPriceService stockPriceService;
+    private final ExchangeRateService exchangeRateService;
 
     @Transactional
     public InvestmentResponse createInvestment(InvestmentCreateRequest request) {
@@ -40,18 +42,24 @@ public class InvestmentService {
                 request.getOwner(),
                 request.getPurchasePrice(),
                 request.getQuantity(),
-                request.getPurchaseAmount()
+                request.getPurchaseAmount(),
+                request.getMarketType()
         );
         Investment saved = investmentRepository.save(investment);
         Long currentPrice = stockPriceService.getCurrentPrice(saved.getTicker());
-        return InvestmentResponse.from(saved, currentPrice);
+        Double exchangeRate = saved.getMarketType() == MarketType.OVERSEAS ? exchangeRateService.getUsdToKrw() : null;
+        return InvestmentResponse.from(saved, currentPrice, exchangeRate);
     }
 
     public Page<InvestmentResponse> searchInvestments(String owner, String category, Long assetId, Pageable pageable) {
         Page<Investment> investmentPage = investmentRepository.searchInvestments(owner, category, assetId, pageable);
 
+        boolean hasOverseas = investmentPage.getContent().stream()
+                .anyMatch(inv -> inv.getMarketType() == MarketType.OVERSEAS);
+        Double exchangeRate = hasOverseas ? exchangeRateService.getUsdToKrw() : null;
+
         List<InvestmentResponse> responses = investmentPage.getContent().stream()
-                .map(inv -> InvestmentResponse.from(inv, stockPriceService.getCurrentPrice(inv.getTicker())))
+                .map(inv -> InvestmentResponse.from(inv, stockPriceService.getCurrentPrice(inv.getTicker()), exchangeRate))
                 .toList();
 
         return new PageImpl<>(responses, pageable, investmentPage.getTotalElements());
@@ -60,12 +68,20 @@ public class InvestmentService {
     public InvestmentResponse getInvestmentById(Long id) {
         Investment investment = investmentRepository.findById(id)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND, "Investment ID: " + id));
-        return InvestmentResponse.from(investment, stockPriceService.getCurrentPrice(investment.getTicker()));
+        Long currentPrice = stockPriceService.getCurrentPrice(investment.getTicker());
+        Double exchangeRate = investment.getMarketType() == MarketType.OVERSEAS ? exchangeRateService.getUsdToKrw() : null;
+        return InvestmentResponse.from(investment, currentPrice, exchangeRate);
     }
 
     public List<InvestmentResponse> getInvestmentsByAssetId(Long assetId) {
-        return investmentRepository.findByAssetId(assetId).stream()
-                .map(inv -> InvestmentResponse.from(inv, stockPriceService.getCurrentPrice(inv.getTicker())))
+        List<Investment> investments = investmentRepository.findByAssetId(assetId);
+
+        boolean hasOverseas = investments.stream()
+                .anyMatch(inv -> inv.getMarketType() == MarketType.OVERSEAS);
+        Double exchangeRate = hasOverseas ? exchangeRateService.getUsdToKrw() : null;
+
+        return investments.stream()
+                .map(inv -> InvestmentResponse.from(inv, stockPriceService.getCurrentPrice(inv.getTicker()), exchangeRate))
                 .toList();
     }
 
@@ -88,10 +104,13 @@ public class InvestmentService {
                 request.getOwner(),
                 request.getPurchasePrice(),
                 request.getQuantity(),
-                request.getPurchaseAmount()
+                request.getPurchaseAmount(),
+                request.getMarketType()
         );
 
-        return InvestmentResponse.from(investment, stockPriceService.getCurrentPrice(investment.getTicker()));
+        Long currentPrice = stockPriceService.getCurrentPrice(investment.getTicker());
+        Double exchangeRate = investment.getMarketType() == MarketType.OVERSEAS ? exchangeRateService.getUsdToKrw() : null;
+        return InvestmentResponse.from(investment, currentPrice, exchangeRate);
     }
 
     @Transactional
@@ -106,12 +125,18 @@ public class InvestmentService {
         Asset asset = assetRepository.findById(assetId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND, "Asset ID: " + assetId));
 
+        boolean hasOverseas = investmentRepository.findByAssetId(assetId).stream()
+                .anyMatch(inv -> inv.getMarketType() == MarketType.OVERSEAS);
+        Double exchangeRate = hasOverseas ? exchangeRateService.getUsdToKrw() : null;
+
         Long totalAmount = investmentRepository.findByAssetId(assetId).stream()
                 .mapToLong(inv -> {
                     Long currentPrice = stockPriceService.getCurrentPrice(inv.getTicker());
                     if (currentPrice == null || inv.getQuantity() == null) {
-                        // 현재가 조회 실패 시 purchaseAmount로 fallback
                         return inv.getPurchaseAmount() != null ? inv.getPurchaseAmount() : 0L;
+                    }
+                    if (inv.getMarketType() == MarketType.OVERSEAS && exchangeRate != null) {
+                        return Math.round(currentPrice * exchangeRate) * inv.getQuantity();
                     }
                     return currentPrice * inv.getQuantity();
                 })

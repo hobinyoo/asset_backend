@@ -26,7 +26,6 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/assets")
 @RequiredArgsConstructor
 
-
 public class AssetController {
 
     private final AssetService assetService;
