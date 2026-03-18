@@ -53,6 +53,7 @@ All domains live under `src/main/java/com/asset/asset_backend/domains/`:
 - **QueryDSL** custom queries: each repository has a `XxxRepositoryCustom` interface and `XxxRepositoryCustomImpl`. The `Impl` class must extend the `Custom` interface and be named exactly `XxxRepositoryCustomImpl` for Spring Data to auto-detect it.
 - **Reorder logic** (`AssetService.reorderAsset`): shifts `sortOrder` of affected rows up or down, then sets the moved item's `sortOrder` to `targetPosition`.
 - **DTO 폴더 구조** — `dto/request/`: API 요청 객체, `dto/response/`: API 응답 객체 (suffix `Response` 필수). 내부 계산용 객체는 suffix 없이 기능 단위 폴더로 분리 (예: `dto/portfolio/Holding.java`).
+- **Service 레이어 DTO 변환** — Entity가 없는 집계성 Response는 `static from(값, 값, ...)` 정적 팩토리 메서드를 DTO 안에 정의하고, Service에서 `XxxResponse.from(...)` 형태로 호출. `builder()`는 DTO 내부 팩토리 메서드 안에서만 사용하며, Service에서 직접 호출하지 않는다. 중첩 객체도 동일하게 `of(...)` 팩토리 메서드 적용.
 
 ### Profiles & Config
 

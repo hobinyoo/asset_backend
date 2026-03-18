@@ -6,9 +6,9 @@ import com.asset.asset_backend.common.exception.ErrorCode;
 import com.asset.asset_backend.domains.asset.dto.request.AssetCreateRequest;
 import com.asset.asset_backend.domains.asset.dto.request.AssetReorderRequest;
 import com.asset.asset_backend.domains.asset.dto.request.AssetUpdateRequest;
-import com.asset.asset_backend.domains.asset.dto.response.AssetSummaryResponse;
+import com.asset.asset_backend.domains.asset.dto.response.DashboardChartResponse;
+import com.asset.asset_backend.domains.asset.dto.response.DashboardSummaryResponse;
 import com.asset.asset_backend.domains.asset.entity.Asset;
-
 import com.asset.asset_backend.domains.asset.repository.AssetRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -16,6 +16,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Arrays;
 import java.util.List;
 
 @Service
@@ -27,7 +28,6 @@ public class AssetService {
 
     @Transactional
     public Asset createAsset(AssetCreateRequest request) {
-        // 새 항목은 맨 뒤에 추가
         Integer maxSortOrder = assetRepository.findMaxSortOrder();
         Asset asset = Asset.createAsset(
                 request.getCategory(),
@@ -38,10 +38,11 @@ public class AssetService {
                 request.getPaymentDay(),
                 request.getNote(),
                 request.getLinkedToInvestment(),
-                maxSortOrder + 1   // ✅ 맨 뒤 순서로 생성
+                maxSortOrder + 1
         );
         return assetRepository.save(asset);
     }
+
     public Page<Asset> searchAssets(String category, String owner, AssetType type, Pageable pageable) {
         return assetRepository.searchAssets(category, owner, type, pageable);
     }
@@ -64,7 +65,7 @@ public class AssetService {
                 request.getNote(),
                 request.getLinkedToInvestment()
         );
-        return asset; // @Transactional 이라 save() 불필요
+        return asset;
     }
 
     @Transactional
@@ -87,19 +88,36 @@ public class AssetService {
         if (currentPosition.equals(targetPosition)) return;
 
         if (currentPosition > targetPosition) {
-            // 위로 이동: target ~ current-1 사이 항목들 +1
             assetRepository.incrementSortOrderBetween(targetPosition, currentPosition);
         } else {
-            // 아래로 이동: current+1 ~ target 사이 항목들 -1
             assetRepository.decrementSortOrderBetween(currentPosition, targetPosition);
         }
 
         asset.updateSortOrder(targetPosition);
     }
 
-    public AssetSummaryResponse getSummary() {
-        Long totalAmount = assetRepository.sumAllAmount();
-        Long totalMonthlyPayment = assetRepository.sumAllMonthlyPayment();
-        return AssetSummaryResponse.from(totalAmount, totalMonthlyPayment);
+    public DashboardSummaryResponse getDashboardSummary() {
+        return DashboardSummaryResponse.from(
+                assetRepository.sumAllAmount(),
+                assetRepository.sumAllMonthlyPayment(),
+                assetRepository.sumAmountByType(AssetType.RETIREMENT),
+                assetRepository.sumAmountByType(AssetType.INVESTMENT)
+        );
+    }
+
+    public DashboardChartResponse getDashboardChart() {
+        long total = assetRepository.sumAllAmount();
+
+        List<DashboardChartResponse.ChartItem> items = Arrays.stream(AssetType.values())
+                .map(type -> {
+                    long amount = assetRepository.sumAmountByType(type);
+                    double percentage = total > 0
+                            ? Math.round((double) amount / total * 1000.0) / 10.0
+                            : 0.0;
+                    return DashboardChartResponse.ChartItem.of(type, amount, percentage);
+                })
+                .toList();
+
+        return DashboardChartResponse.from(items);
     }
 }

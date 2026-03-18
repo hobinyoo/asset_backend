@@ -8,7 +8,8 @@ import com.asset.asset_backend.domains.asset.dto.request.AssetCreateRequest;
 import com.asset.asset_backend.domains.asset.dto.request.AssetReorderRequest;
 import com.asset.asset_backend.domains.asset.dto.request.AssetUpdateRequest;
 import com.asset.asset_backend.domains.asset.dto.response.AssetResponse;
-import com.asset.asset_backend.domains.asset.dto.response.AssetSummaryResponse;
+import com.asset.asset_backend.domains.asset.dto.response.DashboardChartResponse;
+import com.asset.asset_backend.domains.asset.dto.response.DashboardSummaryResponse;
 import com.asset.asset_backend.domains.asset.entity.Asset;
 import com.asset.asset_backend.domains.asset.service.AssetService;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +26,6 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/assets")
 @RequiredArgsConstructor
-
 public class AssetController {
 
     private final AssetService assetService;
@@ -40,6 +40,7 @@ public class AssetController {
         assetPaymentScheduler.processMonthlyPayments();
         return ResponseEntity.ok(ApiResult.success("자산 납입 스케줄러 실행 완료", "실행 완료"));
     }
+
     /**
      * 자산 생성
      * POST /api/assets
@@ -47,7 +48,6 @@ public class AssetController {
     @PostMapping
     public ResponseEntity<ApiResult<AssetResponse>> createAsset(
             @RequestBody AssetCreateRequest request) {
-
         Asset asset = assetService.createAsset(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResult.success(AssetResponse.from(asset), "자산이 추가되었습니다."));
@@ -55,8 +55,7 @@ public class AssetController {
 
     /**
      * 자산 목록 조회 (페이징 + 필터)
-     * GET /api/assets
-     * GET /api/assets?owner=호빈&type=REGULAR&page=0&size=10
+     * GET /api/assets?owner=호빈&type=HOUSING&page=0&size=10
      */
     @GetMapping
     public ResponseEntity<ApiResult<ApiPageResponse<AssetResponse>>> getAssets(
@@ -96,7 +95,6 @@ public class AssetController {
     public ResponseEntity<ApiResult<AssetResponse>> updateAsset(
             @PathVariable Long id,
             @RequestBody AssetUpdateRequest request) {
-
         Asset asset = assetService.updateAsset(id, request);
         return ResponseEntity.ok(ApiResult.success(AssetResponse.from(asset), "자산이 수정되었습니다."));
     }
@@ -132,14 +130,24 @@ public class AssetController {
     }
 
     /**
-     * 자산 요약 정보 조회
-     * GET /api/assets/summary
+     * 대시보드 요약 조회
+     * GET /api/assets/dashboard/summary
      */
-    @GetMapping("/summary")
-    public ResponseEntity<ApiResult<AssetSummaryResponse>> getSummary() {
-        AssetSummaryResponse summary = assetService.getSummary();
+    @GetMapping("/dashboard/summary")
+    public ResponseEntity<ApiResult<DashboardSummaryResponse>> getDashboardSummary() {
         return ResponseEntity.ok(
-                ApiResult.success(summary, "자산 요약을 조회했습니다.")
+                ApiResult.success(assetService.getDashboardSummary(), "대시보드 요약을 조회했습니다.")
+        );
+    }
+
+    /**
+     * 대시보드 차트 데이터 조회
+     * GET /api/assets/dashboard/chart
+     */
+    @GetMapping("/dashboard/chart")
+    public ResponseEntity<ApiResult<DashboardChartResponse>> getDashboardChart() {
+        return ResponseEntity.ok(
+                ApiResult.success(assetService.getDashboardChart(), "대시보드 차트 데이터를 조회했습니다.")
         );
     }
 }

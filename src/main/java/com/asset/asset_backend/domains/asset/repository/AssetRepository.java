@@ -1,5 +1,6 @@
 package com.asset.asset_backend.domains.asset.repository;
 
+import com.asset.asset_backend.common.enums.AssetType;
 import com.asset.asset_backend.domains.asset.entity.Asset;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -35,4 +36,7 @@ public interface AssetRepository extends JpaRepository<Asset, Long>, AssetReposi
 
     @Query("SELECT COALESCE(SUM(a.monthlyPayment), 0) FROM Asset a WHERE a.monthlyPayment IS NOT NULL")
     Long sumAllMonthlyPayment();
+
+    @Query("SELECT COALESCE(SUM(a.amount), 0) FROM Asset a WHERE a.type = :type")
+    Long sumAmountByType(@Param("type") AssetType type);
 }
