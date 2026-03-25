@@ -83,6 +83,7 @@ public class AuthController {
                 .sameSite("Lax")
                 .maxAge(maxAge)
                 .path("/")
+                .domain(".yoojoo-asset-management.xyz")
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
@@ -94,6 +95,7 @@ public class AuthController {
                 .sameSite("Lax")
                 .maxAge(Duration.ZERO)
                 .path("/")
+                .domain(".yoojoo-asset-management.xyz")
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
