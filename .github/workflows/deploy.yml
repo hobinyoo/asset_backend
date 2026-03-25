@@ -61,5 +61,6 @@ jobs:
               -e DB_USERNAME=${{ secrets.DB_USERNAME }} \
               -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
               -e ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }} \
+              -e JWT_SECRET=${{ secrets.JWT_SECRET }} \
               ${{ secrets.DOCKER_USERNAME }}/asset-backend:latest
             docker image prune -f
