@@ -6,6 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface InvestmentRepository extends JpaRepository<Investment, Long>, InvestmentRepositoryCustom {
-    List<Investment> findByAssetId(Long assetId);   // 자산 연결 조회
-
+    List<Investment> findByAssetId(Long assetId);
+    List<Investment> findByAsset_UserId(Long userId);
 }

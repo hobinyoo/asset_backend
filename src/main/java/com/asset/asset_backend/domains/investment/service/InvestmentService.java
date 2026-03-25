@@ -30,9 +30,10 @@ public class InvestmentService {
     private final ExchangeRateService exchangeRateService;
 
     @Transactional
-    public InvestmentResponse createInvestment(InvestmentCreateRequest request) {
+    public InvestmentResponse createInvestment(InvestmentCreateRequest request, Long userId) {
         Asset asset = assetRepository.findById(request.getAssetId())
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND, "Asset ID: " + request.getAssetId()));
+        validateAssetOwnership(asset, userId);
 
         Investment investment = Investment.createInvestment(
                 asset,
@@ -51,8 +52,8 @@ public class InvestmentService {
         return InvestmentResponse.from(saved, currentPrice, exchangeRate);
     }
 
-    public Page<InvestmentResponse> searchInvestments(String owner, String category, Long assetId, Pageable pageable) {
-        Page<Investment> investmentPage = investmentRepository.searchInvestments(owner, category, assetId, pageable);
+    public Page<InvestmentResponse> searchInvestments(String owner, String category, Long assetId, Long userId, Pageable pageable) {
+        Page<Investment> investmentPage = investmentRepository.searchInvestments(owner, category, assetId, userId, pageable);
 
         boolean hasOverseas = investmentPage.getContent().stream()
                 .anyMatch(inv -> inv.getMarketType() == MarketType.OVERSEAS);
@@ -65,15 +66,20 @@ public class InvestmentService {
         return new PageImpl<>(responses, pageable, investmentPage.getTotalElements());
     }
 
-    public InvestmentResponse getInvestmentById(Long id) {
+    public InvestmentResponse getInvestmentById(Long id, Long userId) {
         Investment investment = investmentRepository.findById(id)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND, "Investment ID: " + id));
+        validateAssetOwnership(investment.getAsset(), userId);
         Long currentPrice = stockPriceService.getCurrentPrice(investment.getTicker());
         Double exchangeRate = investment.getMarketType() == MarketType.OVERSEAS ? exchangeRateService.getUsdToKrw() : null;
         return InvestmentResponse.from(investment, currentPrice, exchangeRate);
     }
 
-    public List<InvestmentResponse> getInvestmentsByAssetId(Long assetId) {
+    public List<InvestmentResponse> getInvestmentsByAssetId(Long assetId, Long userId) {
+        Asset asset = assetRepository.findById(assetId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND, "Asset ID: " + assetId));
+        validateAssetOwnership(asset, userId);
+
         List<Investment> investments = investmentRepository.findByAssetId(assetId);
 
         boolean hasOverseas = investments.stream()
@@ -86,14 +92,16 @@ public class InvestmentService {
     }
 
     @Transactional
-    public InvestmentResponse updateInvestment(Long id, InvestmentUpdateRequest request) {
+    public InvestmentResponse updateInvestment(Long id, InvestmentUpdateRequest request, Long userId) {
         Investment investment = investmentRepository.findById(id)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND, "Investment ID: " + id));
+        validateAssetOwnership(investment.getAsset(), userId);
 
         Asset asset = null;
         if (request.getAssetId() != null) {
             asset = assetRepository.findById(request.getAssetId())
                     .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND, "Asset ID: " + request.getAssetId()));
+            validateAssetOwnership(asset, userId);
         }
 
         investment.updateInvestmentInfo(
@@ -114,9 +122,10 @@ public class InvestmentService {
     }
 
     @Transactional
-    public void deleteInvestment(Long id) {
+    public void deleteInvestment(Long id, Long userId) {
         Investment investment = investmentRepository.findById(id)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND, "Investment ID: " + id));
+        validateAssetOwnership(investment.getAsset(), userId);
         investmentRepository.delete(investment);
     }
 
@@ -143,5 +152,11 @@ public class InvestmentService {
                 .sum();
 
         asset.updateAmount(totalAmount);
+    }
+
+    private void validateAssetOwnership(Asset asset, Long userId) {
+        if (asset.getUser() == null || !asset.getUser().getId().equals(userId)) {
+            throw new BaseException(ErrorCode.FORBIDDEN, "해당 투자 항목에 접근 권한이 없습니다");
+        }
     }
 }

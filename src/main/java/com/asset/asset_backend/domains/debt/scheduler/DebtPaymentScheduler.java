@@ -1,7 +1,6 @@
-package com.asset.asset_backend.common.scheduler;
+package com.asset.asset_backend.domains.debt.scheduler;
 
 import com.asset.asset_backend.domains.debt.entity.Debt;
-
 import com.asset.asset_backend.domains.debt.repository.DebtRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -6,5 +6,5 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 public interface DebtRepositoryCustom {
-    Page<Debt> searchDebts(String category, String owner, AssetType type, Pageable pageable);
+    Page<Debt> searchDebts(String category, String owner, AssetType type, Long userId, Pageable pageable);
 }

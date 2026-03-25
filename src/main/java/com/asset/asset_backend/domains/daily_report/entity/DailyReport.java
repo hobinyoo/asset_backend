@@ -1,5 +1,6 @@
 package com.asset.asset_backend.domains.daily_report.entity;
 
+import com.asset.asset_backend.domains.auth.entity.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -28,15 +29,20 @@ public class DailyReport {
     @Column(columnDefinition = "TEXT", nullable = false)
     private String summaryContent;      // 요약본 (카톡용)
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private User user;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
 
-    public static DailyReport create(LocalDate reportDate, String fullContent, String summaryContent) {
+    public static DailyReport create(LocalDate reportDate, String fullContent, String summaryContent, User user) {
         DailyReport report = new DailyReport();
         report.reportDate = reportDate;
         report.fullContent = fullContent;
         report.summaryContent = summaryContent;
+        report.user = user;
         return report;
     }
 }

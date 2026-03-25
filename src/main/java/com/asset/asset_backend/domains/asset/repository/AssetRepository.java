@@ -11,32 +11,37 @@ import java.util.List;
 public interface AssetRepository extends JpaRepository<Asset, Long>, AssetRepositoryCustom {
     List<Asset> findByPaymentDay(Integer paymentDay);
     List<Asset> findByLinkedToInvestmentTrue();
+    List<Asset> findByLinkedToInvestmentTrueAndUser_Id(Long userId);
 
-    // 새 자산 추가 시 맨 뒤 순서 계산용 (데이터 없으면 0 반환)
-    @Query("SELECT COALESCE(MAX(a.sortOrder), 0) FROM Asset a")
-    Integer findMaxSortOrder();
-
-    // 위로 이동할 때: target ~ current-1 사이 항목들 +1 (밀어내기)
-    // ex) 5번 → 2번으로: 2,3,4번이 3,4,5번으로
-    @Modifying
-    @Query("UPDATE Asset a SET a.sortOrder = a.sortOrder + 1 WHERE a.sortOrder >= :targetPosition AND a.sortOrder < :currentPosition")
-    void incrementSortOrderBetween(@Param("targetPosition") Integer targetPosition,
-                                   @Param("currentPosition") Integer currentPosition);
-
-    // 아래로 이동할 때: current+1 ~ target 사이 항목들 -1 (당기기)
-    // ex) 2번 → 5번으로: 3,4,5번이 2,3,4번으로
-    @Modifying
-    @Query("UPDATE Asset a SET a.sortOrder = a.sortOrder - 1 WHERE a.sortOrder > :currentPosition AND a.sortOrder <= :targetPosition")
-    void decrementSortOrderBetween(@Param("currentPosition") Integer currentPosition,
-                                   @Param("targetPosition") Integer targetPosition);
-
-    // 전체 합구하기
+    // 스케줄러용 (전체 집계)
     @Query("SELECT COALESCE(SUM(a.amount), 0) FROM Asset a")
     Long sumAllAmount();
 
-    @Query("SELECT COALESCE(SUM(a.monthlyPayment), 0) FROM Asset a WHERE a.monthlyPayment IS NOT NULL")
-    Long sumAllMonthlyPayment();
-
     @Query("SELECT COALESCE(SUM(a.amount), 0) FROM Asset a WHERE a.type = :type")
     Long sumAmountByType(@Param("type") AssetType type);
+
+    // 유저별 집계
+    @Query("SELECT COALESCE(MAX(a.sortOrder), 0) FROM Asset a WHERE a.user.id = :userId")
+    Integer findMaxSortOrderByMemberId(@Param("userId") Long userId);
+
+    @Modifying
+    @Query("UPDATE Asset a SET a.sortOrder = a.sortOrder + 1 WHERE a.sortOrder >= :targetPosition AND a.sortOrder < :currentPosition AND a.user.id = :userId")
+    void incrementSortOrderBetween(@Param("targetPosition") Integer targetPosition,
+                                   @Param("currentPosition") Integer currentPosition,
+                                   @Param("userId") Long userId);
+
+    @Modifying
+    @Query("UPDATE Asset a SET a.sortOrder = a.sortOrder - 1 WHERE a.sortOrder > :currentPosition AND a.sortOrder <= :targetPosition AND a.user.id = :userId")
+    void decrementSortOrderBetween(@Param("currentPosition") Integer currentPosition,
+                                   @Param("targetPosition") Integer targetPosition,
+                                   @Param("userId") Long userId);
+
+    @Query("SELECT COALESCE(SUM(a.amount), 0) FROM Asset a WHERE a.user.id = :userId")
+    Long sumAllAmountByMemberId(@Param("userId") Long userId);
+
+    @Query("SELECT COALESCE(SUM(a.monthlyPayment), 0) FROM Asset a WHERE a.monthlyPayment IS NOT NULL AND a.user.id = :userId")
+    Long sumAllMonthlyPaymentByMemberId(@Param("userId") Long userId);
+
+    @Query("SELECT COALESCE(SUM(a.amount), 0) FROM Asset a WHERE a.type = :type AND a.user.id = :userId")
+    Long sumAmountByTypeAndMemberId(@Param("type") AssetType type, @Param("userId") Long userId);
 }

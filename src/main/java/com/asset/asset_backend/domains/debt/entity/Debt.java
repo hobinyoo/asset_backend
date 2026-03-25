@@ -1,6 +1,7 @@
 package com.asset.asset_backend.domains.debt.entity;
 
 import com.asset.asset_backend.common.enums.AssetType;
+import com.asset.asset_backend.domains.auth.entity.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -41,6 +42,10 @@ public class Debt {
 
     private String note;            // 비고
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private User user;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
@@ -50,7 +55,7 @@ public class Debt {
 
     public static Debt createDebt(String category, String owner, Long amount,
                                   AssetType type, Long monthlyPayment, Integer paymentDay,
-                                  String purpose, String note) {
+                                  String purpose, String note, User user) {
         Debt debt = new Debt();
         debt.category = category;
         debt.owner = owner;
@@ -60,6 +65,7 @@ public class Debt {
         debt.paymentDay = paymentDay;
         debt.purpose = purpose;
         debt.note = note;
+        debt.user = user;
         return debt;
     }
 

@@ -18,12 +18,13 @@ public class DebtRepositoryCustomImpl implements DebtRepositoryCustom {
     private final JPAQueryFactory queryFactory;
 
     @Override
-    public Page<Debt> searchDebts(String category, String owner, AssetType type, Pageable pageable) {
+    public Page<Debt> searchDebts(String category, String owner, AssetType type, Long userId, Pageable pageable) {
         QDebt debt = QDebt.debt;
 
         List<Debt> debts = queryFactory
                 .selectFrom(debt)
                 .where(
+                        debt.user.id.eq(userId),
                         containsCategory(category),
                         eqOwner(owner),
                         eqType(type)
@@ -36,6 +37,7 @@ public class DebtRepositoryCustomImpl implements DebtRepositoryCustom {
                 .select(debt.count())
                 .from(debt)
                 .where(
+                        debt.user.id.eq(userId),
                         containsCategory(category),
                         eqOwner(owner),
                         eqType(type)

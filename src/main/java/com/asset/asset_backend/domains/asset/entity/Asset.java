@@ -1,5 +1,6 @@
 package com.asset.asset_backend.domains.asset.entity;
 
+import com.asset.asset_backend.domains.auth.entity.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -43,6 +44,9 @@ public class Asset {
     @Column(nullable = false)
     private Integer sortOrder;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private User user;
 
     @CreationTimestamp
     @Column(updatable = false)
@@ -54,7 +58,8 @@ public class Asset {
     // ✅ 생성 메서드
     public static Asset createAsset(String category, String owner, Long amount,
                                     AssetType type, Long monthlyPayment, Integer paymentDay,
-                                    String note, Boolean linkedToInvestment,Integer sortOrder) {
+                                    String note, Boolean linkedToInvestment, Integer sortOrder,
+                                    User user) {
         Asset asset = new Asset();
         asset.category = category;
         asset.owner = owner;
@@ -65,6 +70,7 @@ public class Asset {
         asset.note = note;
         asset.linkedToInvestment = linkedToInvestment != null && linkedToInvestment;
         asset.sortOrder = sortOrder;
+        asset.user = user;
         return asset;
     }
 

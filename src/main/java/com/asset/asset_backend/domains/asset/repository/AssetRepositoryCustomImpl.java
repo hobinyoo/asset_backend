@@ -20,12 +20,13 @@ public class AssetRepositoryCustomImpl implements AssetRepositoryCustom {
     private final JPAQueryFactory queryFactory;
 
     @Override
-    public Page<Asset> searchAssets(String category, String owner, AssetType type, Pageable pageable) {
+    public Page<Asset> searchAssets(String category, String owner, AssetType type, Long userId, Pageable pageable) {
         QAsset asset = QAsset.asset;
 
         List<Asset> assets = queryFactory
                 .selectFrom(asset)
                 .where(
+                        asset.user.id.eq(userId),
                         containsCategory(category),
                         eqOwner(owner),
                         eqType(type)
@@ -39,6 +40,7 @@ public class AssetRepositoryCustomImpl implements AssetRepositoryCustom {
                 .select(asset.count())
                 .from(asset)
                 .where(
+                        asset.user.id.eq(userId),
                         containsCategory(category),
                         eqOwner(owner),
                         eqType(type)

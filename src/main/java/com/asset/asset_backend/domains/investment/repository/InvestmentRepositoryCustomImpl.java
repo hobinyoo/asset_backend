@@ -17,12 +17,13 @@ public class InvestmentRepositoryCustomImpl implements InvestmentRepositoryCusto
     private final JPAQueryFactory queryFactory;
 
     @Override
-    public Page<Investment> searchInvestments(String owner, String category, Long assetId, Pageable pageable) {
+    public Page<Investment> searchInvestments(String owner, String category, Long assetId, Long userId, Pageable pageable) {
         QInvestment investment = QInvestment.investment;
 
         List<Investment> investments = queryFactory
                 .selectFrom(investment)
                 .where(
+                        investment.asset.user.id.eq(userId),
                         eqOwner(owner),
                         containsCategory(category),
                         eqAssetId(assetId)
@@ -35,13 +36,16 @@ public class InvestmentRepositoryCustomImpl implements InvestmentRepositoryCusto
                 .select(investment.count())
                 .from(investment)
                 .where(
+                        investment.asset.user.id.eq(userId),
                         eqOwner(owner),
-                        containsCategory(category)
+                        containsCategory(category),
+                        eqAssetId(assetId)
                 )
                 .fetchOne();
 
         return new PageImpl<>(investments, pageable, total != null ? total : 0);
     }
+
     private BooleanExpression eqAssetId(Long assetId) {
         return assetId != null ? QInvestment.investment.asset.id.eq(assetId) : null;
     }

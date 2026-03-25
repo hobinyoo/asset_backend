@@ -10,6 +10,8 @@ import com.asset.asset_backend.domains.asset.dto.response.DashboardChartResponse
 import com.asset.asset_backend.domains.asset.dto.response.DashboardSummaryResponse;
 import com.asset.asset_backend.domains.asset.entity.Asset;
 import com.asset.asset_backend.domains.asset.repository.AssetRepository;
+import com.asset.asset_backend.domains.auth.entity.User;
+import com.asset.asset_backend.domains.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -25,10 +27,13 @@ import java.util.List;
 public class AssetService {
 
     private final AssetRepository assetRepository;
+    private final UserRepository userRepository;
 
     @Transactional
-    public Asset createAsset(AssetCreateRequest request) {
-        Integer maxSortOrder = assetRepository.findMaxSortOrder();
+    public Asset createAsset(AssetCreateRequest request, Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BaseException(ErrorCode.MEMBER_NOT_FOUND, "User ID: " + userId));
+        Integer maxSortOrder = assetRepository.findMaxSortOrderByMemberId(userId);
         Asset asset = Asset.createAsset(
                 request.getCategory(),
                 request.getOwner(),
@@ -38,23 +43,26 @@ public class AssetService {
                 request.getPaymentDay(),
                 request.getNote(),
                 request.getLinkedToInvestment(),
-                maxSortOrder + 1
+                maxSortOrder + 1,
+                user
         );
         return assetRepository.save(asset);
     }
 
-    public Page<Asset> searchAssets(String category, String owner, AssetType type, Pageable pageable) {
-        return assetRepository.searchAssets(category, owner, type, pageable);
+    public Page<Asset> searchAssets(String category, String owner, AssetType type, Long userId, Pageable pageable) {
+        return assetRepository.searchAssets(category, owner, type, userId, pageable);
     }
 
-    public Asset getAssetById(Long id) {
-        return assetRepository.findById(id)
+    public Asset getAssetById(Long id, Long userId) {
+        Asset asset = assetRepository.findById(id)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND, "Asset ID: " + id));
+        validateOwnership(asset.getUser().getId(), userId);
+        return asset;
     }
 
     @Transactional
-    public Asset updateAsset(Long id, AssetUpdateRequest request) {
-        Asset asset = getAssetById(id);
+    public Asset updateAsset(Long id, AssetUpdateRequest request, Long userId) {
+        Asset asset = getAssetById(id, userId);
         asset.updateAssetInfo(
                 request.getCategory(),
                 request.getOwner(),
@@ -69,48 +77,47 @@ public class AssetService {
     }
 
     @Transactional
-    public void deleteAsset(Long id) {
-        Asset asset = getAssetById(id);
+    public void deleteAsset(Long id, Long userId) {
+        Asset asset = getAssetById(id, userId);
         assetRepository.delete(asset);
     }
 
-    @Transactional
-    public List<Asset> getLinkedAssets() {
-        return assetRepository.findByLinkedToInvestmentTrue();
+    public List<Asset> getLinkedAssets(Long userId) {
+        return assetRepository.findByLinkedToInvestmentTrueAndUser_Id(userId);
     }
 
     @Transactional
-    public void reorderAsset(Long id, AssetReorderRequest request) {
-        Asset asset = getAssetById(id);
+    public void reorderAsset(Long id, AssetReorderRequest request, Long userId) {
+        Asset asset = getAssetById(id, userId);
         Integer currentPosition = asset.getSortOrder();
         Integer targetPosition = request.getTargetPosition();
 
         if (currentPosition.equals(targetPosition)) return;
 
         if (currentPosition > targetPosition) {
-            assetRepository.incrementSortOrderBetween(targetPosition, currentPosition);
+            assetRepository.incrementSortOrderBetween(targetPosition, currentPosition, userId);
         } else {
-            assetRepository.decrementSortOrderBetween(currentPosition, targetPosition);
+            assetRepository.decrementSortOrderBetween(currentPosition, targetPosition, userId);
         }
 
         asset.updateSortOrder(targetPosition);
     }
 
-    public DashboardSummaryResponse getDashboardSummary() {
+    public DashboardSummaryResponse getDashboardSummary(Long userId) {
         return DashboardSummaryResponse.from(
-                assetRepository.sumAllAmount(),
-                assetRepository.sumAllMonthlyPayment(),
-                assetRepository.sumAmountByType(AssetType.RETIREMENT),
-                assetRepository.sumAmountByType(AssetType.INVESTMENT)
+                assetRepository.sumAllAmountByMemberId(userId),
+                assetRepository.sumAllMonthlyPaymentByMemberId(userId),
+                assetRepository.sumAmountByTypeAndMemberId(AssetType.RETIREMENT, userId),
+                assetRepository.sumAmountByTypeAndMemberId(AssetType.INVESTMENT, userId)
         );
     }
 
-    public DashboardChartResponse getDashboardChart() {
-        long total = assetRepository.sumAllAmount();
+    public DashboardChartResponse getDashboardChart(Long userId) {
+        long total = assetRepository.sumAllAmountByMemberId(userId);
 
         List<DashboardChartResponse.ChartItem> items = Arrays.stream(AssetType.values())
                 .map(type -> {
-                    long amount = assetRepository.sumAmountByType(type);
+                    long amount = assetRepository.sumAmountByTypeAndMemberId(type, userId);
                     double percentage = total > 0
                             ? Math.round((double) amount / total * 1000.0) / 10.0
                             : 0.0;
@@ -119,5 +126,11 @@ public class AssetService {
                 .toList();
 
         return DashboardChartResponse.from(items);
+    }
+
+    private void validateOwnership(Long assetUserId, Long userId) {
+        if (!assetUserId.equals(userId)) {
+            throw new BaseException(ErrorCode.FORBIDDEN, "해당 자산에 접근 권한이 없습니다");
+        }
     }
 }

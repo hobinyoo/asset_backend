@@ -8,6 +8,6 @@ import java.util.List;
 import java.util.Optional;
 
 public interface DailyReportRepository extends JpaRepository<DailyReport, Long> {
-    Optional<DailyReport> findByReportDate(LocalDate reportDate);
-    List<DailyReport> findAllByOrderByReportDateDesc();  // 최신순 전체 조회
+    Optional<DailyReport> findByReportDateAndUser_Id(LocalDate reportDate, Long userId);
+    List<DailyReport> findAllByUser_IdOrderByReportDateDesc(Long userId);
 }

@@ -7,5 +7,5 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 public interface AssetRepositoryCustom {
-    Page<Asset> searchAssets(String category, String owner, AssetType type, Pageable pageable);
+    Page<Asset> searchAssets(String category, String owner, AssetType type, Long userId, Pageable pageable);
 }

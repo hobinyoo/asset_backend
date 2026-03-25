@@ -1,4 +1,4 @@
-package com.asset.asset_backend.common.scheduler;
+package com.asset.asset_backend.domains.asset.scheduler;
 
 import com.asset.asset_backend.domains.asset.entity.Asset;
 import com.asset.asset_backend.domains.asset.repository.AssetRepository;

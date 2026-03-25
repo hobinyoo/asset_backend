@@ -43,7 +43,7 @@ All domains live under `src/main/java/com/asset/asset_backend/domains/`:
 - **response/** — `ApiResult<T>` wraps all API responses (`success`/`error` static factories); `ApiPageResponse` for paginated results
 - **exception/** — `BaseException` + `ErrorCode` enum + `GlobalExceptionHandler`
 - **enums/** — `AssetType` (FIXED, REGULAR, VARIABLE)
-- **scheduler/** — `AssetPaymentScheduler` and `DebtPaymentScheduler` run daily at midnight, adding `monthlyPayment` to assets/debts whose `paymentDay` matches today
+- ~~**scheduler/**~~ — 스케줄러는 `common/scheduler/`를 사용하지 않고, 각 도메인 폴더 안 `scheduler/` 폴더에 생성한다 (예: `domains/asset/scheduler/AssetScheduler.java`)
 - **config/** — `AppConfig` (RestTemplate bean), `CorsConfig`, `QueryDslConfig` (JPAQueryFactory bean)
 
 ### Key Patterns

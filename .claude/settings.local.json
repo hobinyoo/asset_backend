@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm \"C:\\\\Users\\\\hobin\\\\IdeaProjects\\\\asset_backend\\\\src\\\\main\\\\java\\\\com\\\\asset\\\\asset_backend\\\\common\\\\scheduler\\\\AssetPaymentScheduler.java\" \"C:\\\\Users\\\\hobin\\\\IdeaProjects\\\\asset_backend\\\\src\\\\main\\\\java\\\\com\\\\asset\\\\asset_backend\\\\common\\\\scheduler\\\\DebtPaymentScheduler.java\")",
+      "Bash(rmdir \"C:\\\\Users\\\\hobin\\\\IdeaProjects\\\\asset_backend\\\\src\\\\main\\\\java\\\\com\\\\asset\\\\asset_backend\\\\common\\\\scheduler\")",
+      "Bash(./gradlew clean:*)",
+      "Bash(./gradlew cleanTest test)",
+      "Bash(./gradlew test:*)",
+      "Bash(grep -h 'tests=\"\"\"\"[0-9]' build/test-results/test/TEST-*.xml)",
+      "Bash(grep -rh 'tests=' build/test-results/test/TEST-*.xml)",
+      "Bash(python3 -c \":*)",
+      "Bash(powershell -Command \":*)"
+    ]
+  }
+}

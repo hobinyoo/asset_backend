@@ -1,9 +1,10 @@
 package com.asset.asset_backend.domains.debt.service;
 
-
 import com.asset.asset_backend.common.enums.AssetType;
 import com.asset.asset_backend.common.exception.BaseException;
 import com.asset.asset_backend.common.exception.ErrorCode;
+import com.asset.asset_backend.domains.auth.entity.User;
+import com.asset.asset_backend.domains.auth.repository.UserRepository;
 import com.asset.asset_backend.domains.debt.dto.request.DebtCreateRequest;
 import com.asset.asset_backend.domains.debt.dto.request.DebtUpdateRequest;
 import com.asset.asset_backend.domains.debt.dto.response.DebtSummaryResponse;
@@ -21,9 +22,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class DebtService {
 
     private final DebtRepository debtRepository;
+    private final UserRepository userRepository;
 
     @Transactional
-    public Debt createDebt(DebtCreateRequest request) {
+    public Debt createDebt(DebtCreateRequest request, Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BaseException(ErrorCode.MEMBER_NOT_FOUND, "User ID: " + userId));
         Debt debt = Debt.createDebt(
                 request.getCategory(),
                 request.getOwner(),
@@ -32,23 +36,26 @@ public class DebtService {
                 request.getMonthlyPayment(),
                 request.getPaymentDay(),
                 request.getPurpose(),
-                request.getNote()
+                request.getNote(),
+                user
         );
         return debtRepository.save(debt);
     }
 
-    public Page<Debt> searchDebts(String category, String owner, AssetType type, Pageable pageable) {
-        return debtRepository.searchDebts(category, owner, type, pageable);
+    public Page<Debt> searchDebts(String category, String owner, AssetType type, Long userId, Pageable pageable) {
+        return debtRepository.searchDebts(category, owner, type, userId, pageable);
     }
 
-    public Debt getDebtById(Long id) {
-        return debtRepository.findById(id)
+    public Debt getDebtById(Long id, Long userId) {
+        Debt debt = debtRepository.findById(id)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND, "Debt ID: " + id));
+        validateOwnership(debt.getUser().getId(), userId);
+        return debt;
     }
 
     @Transactional
-    public Debt updateDebt(Long id, DebtUpdateRequest request) {
-        Debt debt = getDebtById(id);
+    public Debt updateDebt(Long id, DebtUpdateRequest request, Long userId) {
+        Debt debt = getDebtById(id, userId);
         debt.updateDebtInfo(
                 request.getCategory(),
                 request.getOwner(),
@@ -63,14 +70,20 @@ public class DebtService {
     }
 
     @Transactional
-    public void deleteDebt(Long id) {
-        Debt debt = getDebtById(id);
+    public void deleteDebt(Long id, Long userId) {
+        Debt debt = getDebtById(id, userId);
         debtRepository.delete(debt);
     }
 
-    public DebtSummaryResponse getSummary() {
-        Long totalAmount = debtRepository.sumAllAmount();
-        Long totalMonthlyPayment = debtRepository.sumAllMonthlyPayment();
+    public DebtSummaryResponse getSummary(Long userId) {
+        Long totalAmount = debtRepository.sumAllAmountByMemberId(userId);
+        Long totalMonthlyPayment = debtRepository.sumAllMonthlyPaymentByMemberId(userId);
         return DebtSummaryResponse.from(totalAmount, totalMonthlyPayment);
+    }
+
+    private void validateOwnership(Long debtUserId, Long userId) {
+        if (!debtUserId.equals(userId)) {
+            throw new BaseException(ErrorCode.FORBIDDEN, "해당 부채에 접근 권한이 없습니다");
+        }
     }
 }
