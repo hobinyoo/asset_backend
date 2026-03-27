@@ -154,6 +154,14 @@ public class InvestmentService {
         asset.updateAmount(totalAmount);
     }
 
+    @Transactional
+    public void syncAllAssets(Long userId) {
+        List<Asset> linkedAssets = assetRepository.findByLinkedToInvestmentTrueAndUser_Id(userId);
+        for (Asset asset : linkedAssets) {
+            syncAssetAmount(asset.getId());
+        }
+    }
+
     private void validateAssetOwnership(Asset asset, Long userId) {
         if (asset.getUser() == null || !asset.getUser().getId().equals(userId)) {
             throw new BaseException(ErrorCode.FORBIDDEN, "해당 투자 항목에 접근 권한이 없습니다");

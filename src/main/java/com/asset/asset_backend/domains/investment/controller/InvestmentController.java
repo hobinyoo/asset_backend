@@ -80,13 +80,4 @@ public class InvestmentController {
         return ResponseEntity.ok(ApiResult.success(null, "투자 항목이 삭제되었습니다."));
     }
 
-    @PostMapping("/sync-asset/{assetId}")
-    public ResponseEntity<ApiResult<Void>> syncAssetAmount(
-            @AuthenticationPrincipal Long userId,
-            @PathVariable Long assetId) {
-        // 소유권 검증 후 sync 실행
-        investmentService.getInvestmentsByAssetId(assetId, userId);
-        investmentService.syncAssetAmount(assetId);
-        return ResponseEntity.ok(ApiResult.success(null, "자산 금액이 업데이트되었습니다."));
-    }
 }

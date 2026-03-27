@@ -343,6 +343,34 @@
 
 ---
 
+### 2-10. 자산별 투자 금액 동기화
+
+| 항목 | 내용 |
+|------|------|
+| **URL** | `POST /api/assets/{assetId}/sync-investments` |
+| **인증 필요** | O |
+
+**경로 파라미터**: `assetId` (자산 ID)
+
+**비즈니스 로직**
+- 소유권 검증 후 해당 Asset에 연결된 Investment 전체의 평가금액 합산
+- Asset의 `amount` 필드를 합산값으로 업데이트
+
+---
+
+### 2-11. 전체 투자 연동 자산 동기화
+
+| 항목 | 내용 |
+|------|------|
+| **URL** | `POST /api/assets/sync-all` |
+| **인증 필요** | O |
+
+**비즈니스 로직**
+- 현재 유저의 `linkedToInvestment = true`인 자산 전체 조회
+- 각 자산에 대해 `syncAssetAmount()` 순차 호출
+
+---
+
 ## 3. 부채 (Debt)
 
 ### 3-1. 부채 생성
@@ -549,17 +577,6 @@
 | **인증 필요** | O |
 
 ---
-
-### 4-7. Asset 금액 동기화
-
-| 항목 | 내용 |
-|------|------|
-| **URL** | `POST /api/investments/sync-asset/{assetId}` |
-| **인증 필요** | O |
-
-**비즈니스 로직**
-- 해당 Asset에 연결된 Investment 전체의 평가금액 합산
-- Asset의 `amount` 필드를 합산값으로 업데이트
 
 ---
 

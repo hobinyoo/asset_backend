@@ -11,6 +11,7 @@ import com.asset.asset_backend.domains.asset.dto.response.DashboardChartResponse
 import com.asset.asset_backend.domains.asset.dto.response.DashboardSummaryResponse;
 import com.asset.asset_backend.domains.asset.entity.Asset;
 import com.asset.asset_backend.domains.asset.service.AssetService;
+import com.asset.asset_backend.domains.investment.service.InvestmentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -29,6 +30,7 @@ import java.util.stream.Collectors;
 public class AssetController {
 
     private final AssetService assetService;
+    private final InvestmentService investmentService;
 
     /**
      * 자산 생성
@@ -149,5 +151,29 @@ public class AssetController {
         return ResponseEntity.ok(
                 ApiResult.success(assetService.getDashboardChart(userId), "대시보드 차트 데이터를 조회했습니다.")
         );
+    }
+
+    /**
+     * 자산별 투자 금액 동기화
+     * POST /api/assets/{assetId}/sync-investments
+     */
+    @PostMapping("/{assetId}/sync-investments")
+    public ResponseEntity<ApiResult<Void>> syncAssetInvestments(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long assetId) {
+        investmentService.getInvestmentsByAssetId(assetId, userId);
+        investmentService.syncAssetAmount(assetId);
+        return ResponseEntity.ok(ApiResult.success(null, "자산 금액이 업데이트되었습니다."));
+    }
+
+    /**
+     * 전체 투자 연동 자산 동기화
+     * POST /api/assets/sync-all
+     */
+    @PostMapping("/sync-all")
+    public ResponseEntity<ApiResult<Void>> syncAllAssets(
+            @AuthenticationPrincipal Long userId) {
+        investmentService.syncAllAssets(userId);
+        return ResponseEntity.ok(ApiResult.success(null, "전체 자산 동기화 완료"));
     }
 }
