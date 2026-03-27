@@ -39,7 +39,7 @@ public class DailyReportService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BaseException(ErrorCode.MEMBER_NOT_FOUND, "User ID: " + userId));
 
-        List<Investment> investments = investmentRepository.findByAsset_UserId(userId);
+        List<Investment> investments = investmentRepository.findByAsset_UserIdWithAsset(userId);
 
         if (investments.isEmpty()) {
             throw new RuntimeException("보유 종목이 없습니다.");
@@ -67,7 +67,7 @@ public class DailyReportService {
                             .map(inv -> String.format(
                                     "  - %s | 계좌: %s | 명의: %s | 매수단가: %s | 수량: %s",
                                     inv.getStockName(),
-                                    inv.getAsset() != null ? inv.getAsset().getCategory() : "-",
+                                    inv.getAsset().getCategory(),
                                     inv.getOwner(),
                                     inv.getPurchasePrice() != null ? inv.getPurchasePrice() + "원" : "직접입력",
                                     inv.getQuantity() != null ? inv.getQuantity() + "주" : "-"
@@ -98,7 +98,7 @@ public class DailyReportService {
                   <h2>카테고리별 분석</h2>
                   <!-- 카테고리마다 아래 div 반복 -->
                   <div class="stock-item">
-                    <h3><!-- 카테고리명 (보유 종목: 종목1, 종목2 ...) --></h3>
+                    <h3><!-- 카테고리명 --></h3>
                     <p class="news"><!-- 해당 카테고리 오늘 주요 이슈 --></p>
                     <p class="outlook"><!-- 오늘 기준 흐름 및 주목 포인트 --></p>
                   </div>
