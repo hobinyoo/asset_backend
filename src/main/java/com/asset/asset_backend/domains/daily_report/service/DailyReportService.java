@@ -45,24 +45,45 @@ public class DailyReportService {
             throw new RuntimeException("보유 종목이 없습니다.");
         }
 
-        String stockInfo = investments.stream()
-                .map(inv -> String.format(
-                        "- %s | 계좌: %s | 카테고리: %s | 명의: %s | 매수단가: %s | 수량: %s",
-                        inv.getStockName(),
-                        inv.getAsset() != null ? inv.getAsset().getCategory() : "-",
-                        inv.getCategory(),
-                        inv.getOwner(),
-                        inv.getPurchasePrice() != null ? inv.getPurchasePrice() + "원" : "직접입력",
-                        inv.getQuantity() != null ? inv.getQuantity() + "주" : "-"
-                ))
-                .collect(Collectors.joining("\n"));
+        String stockInfo = buildStockInfo(investments);
 
-        // 전체 리포트 - HTML 구조 고정
-        String fullPrompt = String.format("""
+        log.info("Claude API 호출 시작 - 전체 리포트");
+        String fullContent = claudeApiService.generateReport(buildFullPrompt(date, stockInfo));
+
+        log.info("Claude API 호출 시작 - 요약");
+        String summaryContent = claudeApiService.generateReport(buildSummaryPrompt(date, stockInfo));
+
+        DailyReport report = DailyReport.create(date, fullContent, summaryContent, user);
+        return dailyReportRepository.save(report);
+    }
+
+    private String buildStockInfo(List<Investment> investments) {
+        return investments.stream()
+                .collect(Collectors.groupingBy(Investment::getCategory))
+                .entrySet().stream()
+                .map(entry -> {
+                    String category = entry.getKey();
+                    String items = entry.getValue().stream()
+                            .map(inv -> String.format(
+                                    "  - %s | 계좌: %s | 명의: %s | 매수단가: %s | 수량: %s",
+                                    inv.getStockName(),
+                                    inv.getAsset() != null ? inv.getAsset().getCategory() : "-",
+                                    inv.getOwner(),
+                                    inv.getPurchasePrice() != null ? inv.getPurchasePrice() + "원" : "직접입력",
+                                    inv.getQuantity() != null ? inv.getQuantity() + "주" : "-"
+                            ))
+                            .collect(Collectors.joining("\n"));
+                    return "[" + category + "]\n" + items;
+                })
+                .collect(Collectors.joining("\n\n"));
+    }
+
+    private String buildFullPrompt(LocalDate date, String stockInfo) {
+        return String.format("""
                 당신은 개인 투자 포트폴리오 분석 전문가입니다.
                 오늘 날짜: %s
 
-                아래는 현재 보유 중인 투자 종목입니다:
+                아래는 현재 보유 중인 투자 종목입니다 (카테고리별 정리):
                 %s
 
                 반드시 아래 HTML 구조 그대로 작성하세요.
@@ -70,57 +91,49 @@ public class DailyReportService {
 
                 <section class="market-summary">
                   <h2>시장 동향</h2>
-                  <p><!-- 오늘 글로벌/국내 시장 전반 동향 요약 --></p>
+                  <p><!-- 오늘 글로벌/국내 시장 전반 동향 한 줄 요약 --></p>
                 </section>
 
                 <section class="stock-analysis">
-                  <h2>종목별 분석</h2>
-                  <!-- 보유 종목마다 아래 div 반복 -->
+                  <h2>카테고리별 분석</h2>
+                  <!-- 카테고리마다 아래 div 반복 -->
                   <div class="stock-item">
-                    <h3><!-- 종목명 --></h3>
-                    <p class="news"><!-- 최근 뉴스 및 이슈 --></p>
-                    <p class="outlook"><!-- 단기 전망 --></p>
+                    <h3><!-- 카테고리명 (보유 종목: 종목1, 종목2 ...) --></h3>
+                    <p class="news"><!-- 해당 카테고리 오늘 주요 이슈 --></p>
+                    <p class="outlook"><!-- 오늘 기준 흐름 및 주목 포인트 --></p>
                   </div>
                 </section>
 
                 <section class="portfolio">
                   <h2>포트폴리오 분석</h2>
-                  <p class="risk"><!-- 리스크 요인 --></p>
-                  <p class="opportunity"><!-- 기회 요인 --></p>
+                  <p class="risk"><!-- 전체 포트폴리오 리스크 요인 --></p>
+                  <p class="opportunity"><!-- 오늘 기준 기회 요인 --></p>
                 </section>
 
                 <section class="action">
                   <h2>오늘의 액션</h2>
-                  <p><!-- 구체적인 투자 액션 제안 --></p>
+                  <p><!-- 오늘 취할 구체적인 투자 액션 1가지 --></p>
                 </section>
 
                 응답은 반드시 3000토큰 이내로 작성하세요.
                 """, date, stockInfo);
+    }
 
-        // 카톡 요약 - 포맷 고정
-        String summaryPrompt = String.format("""
+    private String buildSummaryPrompt(LocalDate date, String stockInfo) {
+        return String.format("""
                 당신은 개인 투자 포트폴리오 분석 전문가입니다.
                 오늘 날짜: %s
 
-                아래는 현재 보유 중인 투자 종목입니다:
+                아래는 현재 보유 중인 투자 종목입니다 (카테고리별 정리):
                 %s
 
                 반드시 아래 형식 그대로만 출력하세요. 다른 텍스트는 절대 추가하지 마세요.
 
                 📈 {날짜} 데일리 브리핑
                 시장: {한 줄 시장 동향}
-                주목: {오늘 가장 주목할 종목 또는 이슈}
+                주목: {오늘 가장 주목할 카테고리 또는 이슈}
                 액션: {오늘 취할 액션 한 줄}
                 """, date, stockInfo);
-
-        log.info("Claude API 호출 시작 - 전체 리포트");
-        String fullContent = claudeApiService.generateReport(fullPrompt);
-
-        log.info("Claude API 호출 시작 - 요약");
-        String summaryContent = claudeApiService.generateReport(summaryPrompt);
-
-        DailyReport report = DailyReport.create(date, fullContent, summaryContent, user);
-        return dailyReportRepository.save(report);
     }
 
     public List<DailyReport> getAllReports(Long userId) {
