@@ -46,6 +46,15 @@ public class AssetDailySnapshot {
     @Column(updatable = false)
     private LocalDateTime createdAt;
 
+    public void updateAmounts(Long totalAssetAmount, Long retirementAmount, Long investmentAmount,
+                              Long totalDebtAmount, Long netWorthAmount) {
+        this.totalAssetAmount = totalAssetAmount;
+        this.retirementAmount = retirementAmount;
+        this.investmentAmount = investmentAmount;
+        this.totalDebtAmount = totalDebtAmount;
+        this.netWorthAmount = netWorthAmount;
+    }
+
     public static AssetDailySnapshot createSnapshot(User user, LocalDate snapshotDate,
                                                      Long totalAssetAmount, Long retirementAmount,
                                                      Long investmentAmount, Long totalDebtAmount,

@@ -3,9 +3,11 @@ package com.asset.asset_backend;
 import com.asset.asset_backend.domains.asset.repository.AssetRepository;
 import com.asset.asset_backend.domains.asset.scheduler.AssetPaymentScheduler;
 import com.asset.asset_backend.domains.asset.scheduler.AssetScheduler;
+import com.asset.asset_backend.domains.auth.entity.User;
 import com.asset.asset_backend.domains.auth.jwt.JwtProvider;
 import com.asset.asset_backend.domains.auth.repository.RefreshTokenRepository;
-import com.asset.asset_backend.domains.config.repository.MemberConfigRepository;
+import com.asset.asset_backend.domains.auth.repository.UserRepository;
+import com.asset.asset_backend.domains.config.repository.UserConfigRepository;
 import com.asset.asset_backend.domains.daily_report.repository.DailyReportRepository;
 import com.asset.asset_backend.domains.daily_report.service.ClaudeApiService;
 import com.asset.asset_backend.domains.debt.repository.DebtRepository;
@@ -36,14 +38,14 @@ public abstract class BaseControllerTest {
     @Autowired protected PasswordEncoder passwordEncoder;
 
     // repositories for cleanup
-    @Autowired protected MemberRepository memberRepository;
+    @Autowired protected UserRepository userRepository;
     @Autowired protected RefreshTokenRepository refreshTokenRepository;
     @Autowired protected AssetRepository assetRepository;
     @Autowired protected DebtRepository debtRepository;
     @Autowired protected InvestmentRepository investmentRepository;
     @Autowired protected AssetDailySnapshotRepository snapshotRepository;
     @Autowired protected DailyReportRepository dailyReportRepository;
-    @Autowired protected MemberConfigRepository memberConfigRepository;
+    @Autowired protected UserConfigRepository userConfigRepository;
 
     // mock external services
     @MockBean protected StockPriceService stockPriceService;
@@ -61,14 +63,14 @@ public abstract class BaseControllerTest {
         investmentRepository.deleteAll();
         snapshotRepository.deleteAll();
         dailyReportRepository.deleteAll();
-        memberConfigRepository.deleteAll();
+        userConfigRepository.deleteAll();
         assetRepository.deleteAll();
         debtRepository.deleteAll();
         refreshTokenRepository.deleteAll();
-        memberRepository.deleteAll();
+        userRepository.deleteAll();
     }
 
-    protected Cookie authCookie(String loginId) {
-        return new Cookie("access_token", jwtProvider.generateAccessToken(loginId));
+    protected Cookie authCookie(User user) {
+        return new Cookie("access_token", jwtProvider.generateAccessToken(user.getLoginId(), user.getId()));
     }
 }

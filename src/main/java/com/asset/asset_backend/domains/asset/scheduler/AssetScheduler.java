@@ -54,11 +54,13 @@ public class AssetScheduler {
         Long totalDebtAmount = debtRepository.sumAllAmountByMemberId(userId);
         Long netWorthAmount = totalAssetAmount - totalDebtAmount;
 
-        AssetDailySnapshot snapshot = AssetDailySnapshot.createSnapshot(
-                user, LocalDate.now(),
-                totalAssetAmount, retirementAmount, investmentAmount,
-                totalDebtAmount, netWorthAmount
-        );
+        AssetDailySnapshot snapshot = snapshotRepository
+                .findByUserAndSnapshotDate(user, LocalDate.now())
+                .orElseGet(() -> AssetDailySnapshot.createSnapshot(
+                        user, LocalDate.now(),
+                        totalAssetAmount, retirementAmount, investmentAmount,
+                        totalDebtAmount, netWorthAmount));
+        snapshot.updateAmounts(totalAssetAmount, retirementAmount, investmentAmount, totalDebtAmount, netWorthAmount);
         snapshotRepository.save(snapshot);
 
         log.info("[AssetScheduler] 스냅샷 저장 - userId={}, 총자산={}원, 총부채={}원, 순자산={}원",

@@ -3,7 +3,6 @@ package com.asset.asset_backend.domains.asset.controller;
 import com.asset.asset_backend.common.enums.AssetType;
 import com.asset.asset_backend.common.response.ApiPageResponse;
 import com.asset.asset_backend.common.response.ApiResult;
-import com.asset.asset_backend.domains.asset.scheduler.AssetPaymentScheduler;
 import com.asset.asset_backend.domains.asset.dto.request.AssetCreateRequest;
 import com.asset.asset_backend.domains.asset.dto.request.AssetReorderRequest;
 import com.asset.asset_backend.domains.asset.dto.request.AssetUpdateRequest;
@@ -30,17 +29,6 @@ import java.util.stream.Collectors;
 public class AssetController {
 
     private final AssetService assetService;
-    private final AssetPaymentScheduler assetPaymentScheduler;
-
-    /**
-     * [테스트] 자산 납입 스케줄러 수동 실행
-     * POST /api/assets/scheduler/payment
-     */
-    @PostMapping("/scheduler/payment")
-    public ResponseEntity<ApiResult<String>> triggerPayment() {
-        assetPaymentScheduler.processMonthlyPayments();
-        return ResponseEntity.ok(ApiResult.success("자산 납입 스케줄러 실행 완료", "실행 완료"));
-    }
 
     /**
      * 자산 생성

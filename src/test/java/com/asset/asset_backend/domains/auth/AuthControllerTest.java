@@ -2,7 +2,7 @@ package com.asset.asset_backend.domains.auth;
 
 import com.asset.asset_backend.BaseControllerTest;
 import com.asset.asset_backend.common.fixture.TestFixture;
-import com.asset.asset_backend.domains.auth.entity.Member;
+import com.asset.asset_backend.domains.auth.entity.User;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -25,11 +25,9 @@ class AuthControllerTest extends BaseControllerTest {
         @Test
         @DisplayName("정상 회원가입 → 201")
         void success() throws Exception {
-            // given
             String body = objectMapper.writeValueAsString(
                     Map.of("loginId", "newuser", "password", "pass1234"));
 
-            // when & then
             mockMvc.perform(post("/api/auth/signup")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body))
@@ -41,12 +39,10 @@ class AuthControllerTest extends BaseControllerTest {
         @Test
         @DisplayName("중복 loginId → 409")
         void duplicateLoginId() throws Exception {
-            // given
-            memberRepository.save(TestFixture.createMember("existing", passwordEncoder.encode("pass")));
+            userRepository.save(TestFixture.createUser("existing", passwordEncoder.encode("pass")));
             String body = objectMapper.writeValueAsString(
                     Map.of("loginId", "existing", "password", "pass1234"));
 
-            // when & then
             mockMvc.perform(post("/api/auth/signup")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body))
@@ -57,11 +53,9 @@ class AuthControllerTest extends BaseControllerTest {
         @Test
         @DisplayName("빈 loginId (@NotBlank 위반) → 400")
         void blankLoginId() throws Exception {
-            // given
             String body = objectMapper.writeValueAsString(
                     Map.of("loginId", "", "password", "pass1234"));
 
-            // when & then
             mockMvc.perform(post("/api/auth/signup")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body))
@@ -78,12 +72,10 @@ class AuthControllerTest extends BaseControllerTest {
         @Test
         @DisplayName("정상 로그인 → 200 + Set-Cookie")
         void success() throws Exception {
-            // given
-            memberRepository.save(TestFixture.createMember("testuser", passwordEncoder.encode("pass1234")));
+            userRepository.save(TestFixture.createUser("testuser", passwordEncoder.encode("pass1234")));
             String body = objectMapper.writeValueAsString(
                     Map.of("loginId", "testuser", "password", "pass1234"));
 
-            // when & then
             mockMvc.perform(post("/api/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body))
@@ -95,12 +87,10 @@ class AuthControllerTest extends BaseControllerTest {
         @Test
         @DisplayName("틀린 비밀번호 → 401")
         void wrongPassword() throws Exception {
-            // given
-            memberRepository.save(TestFixture.createMember("testuser", passwordEncoder.encode("pass1234")));
+            userRepository.save(TestFixture.createUser("testuser", passwordEncoder.encode("pass1234")));
             String body = objectMapper.writeValueAsString(
                     Map.of("loginId", "testuser", "password", "wrongpass"));
 
-            // when & then
             mockMvc.perform(post("/api/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body))
@@ -110,11 +100,9 @@ class AuthControllerTest extends BaseControllerTest {
         @Test
         @DisplayName("존재하지 않는 회원 → 404")
         void memberNotFound() throws Exception {
-            // given
             String body = objectMapper.writeValueAsString(
                     Map.of("loginId", "nobody", "password", "pass1234"));
 
-            // when & then
             mockMvc.perform(post("/api/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body))
@@ -131,13 +119,11 @@ class AuthControllerTest extends BaseControllerTest {
         @Test
         @DisplayName("유효한 refresh_token → 200 + 새 access_token Set-Cookie")
         void success() throws Exception {
-            // given
-            Member member = memberRepository.save(
-                    TestFixture.createMember("testuser", passwordEncoder.encode("pass")));
+            User user = userRepository.save(
+                    TestFixture.createUser("testuser", passwordEncoder.encode("pass")));
             String refreshToken = jwtProvider.generateRefreshToken("testuser");
-            refreshTokenRepository.save(TestFixture.createRefreshToken(member, refreshToken));
+            refreshTokenRepository.save(TestFixture.createRefreshToken(user, refreshToken));
 
-            // when & then
             mockMvc.perform(post("/api/auth/refresh")
                             .cookie(new jakarta.servlet.http.Cookie("refresh_token", refreshToken)))
                     .andExpect(status().isOk())
@@ -161,12 +147,11 @@ class AuthControllerTest extends BaseControllerTest {
         @Test
         @DisplayName("정상 로그아웃 → 200")
         void success() throws Exception {
-            // given
-            memberRepository.save(TestFixture.createMember("testuser", passwordEncoder.encode("pass")));
+            User user = userRepository.save(
+                    TestFixture.createUser("testuser", passwordEncoder.encode("pass")));
 
-            // when & then
             mockMvc.perform(post("/api/auth/logout")
-                            .cookie(authCookie("testuser")))
+                            .cookie(authCookie(user)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true));
         }
@@ -188,12 +173,11 @@ class AuthControllerTest extends BaseControllerTest {
         @Test
         @DisplayName("정상 내 정보 조회 → 200")
         void success() throws Exception {
-            // given
-            memberRepository.save(TestFixture.createMember("testuser", passwordEncoder.encode("pass")));
+            User user = userRepository.save(
+                    TestFixture.createUser("testuser", passwordEncoder.encode("pass")));
 
-            // when & then
             mockMvc.perform(get("/api/auth/me")
-                            .cookie(authCookie("testuser")))
+                            .cookie(authCookie(user)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.loginId").value("testuser"));
         }

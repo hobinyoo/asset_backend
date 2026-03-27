@@ -2,7 +2,7 @@ package com.asset.asset_backend.domains.debt;
 
 import com.asset.asset_backend.BaseControllerTest;
 import com.asset.asset_backend.common.fixture.TestFixture;
-import com.asset.asset_backend.domains.auth.entity.Member;
+import com.asset.asset_backend.domains.auth.entity.User;
 import com.asset.asset_backend.domains.debt.entity.Debt;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -18,15 +18,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @DisplayName("DebtController 통합 테스트")
 class DebtControllerTest extends BaseControllerTest {
 
-    private Member memberA;
-    private Member memberB;
+    private User userA;
+    private User userB;
 
     @BeforeEach
     void setUp() {
-        memberA = memberRepository.save(
-                TestFixture.createMember(TestFixture.MEMBER_A_ID, passwordEncoder.encode(TestFixture.RAW_PASSWORD)));
-        memberB = memberRepository.save(
-                TestFixture.createMember(TestFixture.MEMBER_B_ID, passwordEncoder.encode(TestFixture.RAW_PASSWORD)));
+        userA = userRepository.save(
+                TestFixture.createUser(TestFixture.MEMBER_A_ID, passwordEncoder.encode(TestFixture.RAW_PASSWORD)));
+        userB = userRepository.save(
+                TestFixture.createUser(TestFixture.MEMBER_B_ID, passwordEncoder.encode(TestFixture.RAW_PASSWORD)));
     }
 
     private String debtBody() throws Exception {
@@ -48,7 +48,7 @@ class DebtControllerTest extends BaseControllerTest {
         @DisplayName("정상 부채 생성 → 201")
         void success() throws Exception {
             mockMvc.perform(post("/api/debts")
-                            .cookie(authCookie(TestFixture.MEMBER_A_ID))
+                            .cookie(authCookie(userA))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(debtBody()))
                     .andExpect(status().isCreated())
@@ -75,13 +75,11 @@ class DebtControllerTest extends BaseControllerTest {
         @Test
         @DisplayName("정상 목록 조회 → 200, 본인 데이터만")
         void success() throws Exception {
-            // given
-            debtRepository.save(TestFixture.createDebt(memberA));
-            debtRepository.save(TestFixture.createDebt(memberB));   // memberB 데이터
+            debtRepository.save(TestFixture.createDebt(userA));
+            debtRepository.save(TestFixture.createDebt(userB));   // userB 데이터
 
-            // when & then
             mockMvc.perform(get("/api/debts")
-                            .cookie(authCookie(TestFixture.MEMBER_A_ID)))
+                            .cookie(authCookie(userA)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.content.length()").value(1));
         }
@@ -103,12 +101,10 @@ class DebtControllerTest extends BaseControllerTest {
         @Test
         @DisplayName("정상 단건 조회 → 200")
         void success() throws Exception {
-            // given
-            Debt debt = debtRepository.save(TestFixture.createDebt(memberA));
+            Debt debt = debtRepository.save(TestFixture.createDebt(userA));
 
-            // when & then
             mockMvc.perform(get("/api/debts/{id}", debt.getId())
-                            .cookie(authCookie(TestFixture.MEMBER_A_ID)))
+                            .cookie(authCookie(userA)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.id").value(debt.getId()));
         }
@@ -116,21 +112,19 @@ class DebtControllerTest extends BaseControllerTest {
         @Test
         @DisplayName("인증 없이 접근 → 401")
         void unauthorized() throws Exception {
-            Debt debt = debtRepository.save(TestFixture.createDebt(memberA));
+            Debt debt = debtRepository.save(TestFixture.createDebt(userA));
 
             mockMvc.perform(get("/api/debts/{id}", debt.getId()))
                     .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("다른 멤버의 부채 접근 → 403")
+        @DisplayName("다른 유저의 부채 접근 → 403")
         void forbidden() throws Exception {
-            // given
-            Debt debt = debtRepository.save(TestFixture.createDebt(memberA));
+            Debt debt = debtRepository.save(TestFixture.createDebt(userA));
 
-            // when & then
             mockMvc.perform(get("/api/debts/{id}", debt.getId())
-                            .cookie(authCookie(TestFixture.MEMBER_B_ID)))
+                            .cookie(authCookie(userB)))
                     .andExpect(status().isForbidden());
         }
 
@@ -138,7 +132,7 @@ class DebtControllerTest extends BaseControllerTest {
         @DisplayName("존재하지 않는 ID → 404")
         void notFound() throws Exception {
             mockMvc.perform(get("/api/debts/{id}", 999_999L)
-                            .cookie(authCookie(TestFixture.MEMBER_A_ID)))
+                            .cookie(authCookie(userA)))
                     .andExpect(status().isNotFound());
         }
     }
@@ -152,15 +146,13 @@ class DebtControllerTest extends BaseControllerTest {
         @Test
         @DisplayName("정상 수정 → 200")
         void success() throws Exception {
-            // given
-            Debt debt = debtRepository.save(TestFixture.createDebt(memberA));
+            Debt debt = debtRepository.save(TestFixture.createDebt(userA));
             String body = objectMapper.writeValueAsString(Map.of(
                     "category", "주택담보대출", "owner", "공동",
                     "amount", 100_000_000, "type", "HOUSING"));
 
-            // when & then
             mockMvc.perform(put("/api/debts/{id}", debt.getId())
-                            .cookie(authCookie(TestFixture.MEMBER_A_ID))
+                            .cookie(authCookie(userA))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body))
                     .andExpect(status().isOk())
@@ -170,7 +162,7 @@ class DebtControllerTest extends BaseControllerTest {
         @Test
         @DisplayName("인증 없이 접근 → 401")
         void unauthorized() throws Exception {
-            Debt debt = debtRepository.save(TestFixture.createDebt(memberA));
+            Debt debt = debtRepository.save(TestFixture.createDebt(userA));
 
             mockMvc.perform(put("/api/debts/{id}", debt.getId())
                             .contentType(MediaType.APPLICATION_JSON)
@@ -179,14 +171,12 @@ class DebtControllerTest extends BaseControllerTest {
         }
 
         @Test
-        @DisplayName("다른 멤버의 부채 수정 → 403")
+        @DisplayName("다른 유저의 부채 수정 → 403")
         void forbidden() throws Exception {
-            // given
-            Debt debt = debtRepository.save(TestFixture.createDebt(memberA));
+            Debt debt = debtRepository.save(TestFixture.createDebt(userA));
 
-            // when & then
             mockMvc.perform(put("/api/debts/{id}", debt.getId())
-                            .cookie(authCookie(TestFixture.MEMBER_B_ID))
+                            .cookie(authCookie(userB))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(debtBody()))
                     .andExpect(status().isForbidden());
@@ -202,33 +192,29 @@ class DebtControllerTest extends BaseControllerTest {
         @Test
         @DisplayName("정상 삭제 → 200")
         void success() throws Exception {
-            // given
-            Debt debt = debtRepository.save(TestFixture.createDebt(memberA));
+            Debt debt = debtRepository.save(TestFixture.createDebt(userA));
 
-            // when & then
             mockMvc.perform(delete("/api/debts/{id}", debt.getId())
-                            .cookie(authCookie(TestFixture.MEMBER_A_ID)))
+                            .cookie(authCookie(userA)))
                     .andExpect(status().isOk());
         }
 
         @Test
         @DisplayName("인증 없이 접근 → 401")
         void unauthorized() throws Exception {
-            Debt debt = debtRepository.save(TestFixture.createDebt(memberA));
+            Debt debt = debtRepository.save(TestFixture.createDebt(userA));
 
             mockMvc.perform(delete("/api/debts/{id}", debt.getId()))
                     .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("다른 멤버의 부채 삭제 → 403")
+        @DisplayName("다른 유저의 부채 삭제 → 403")
         void forbidden() throws Exception {
-            // given
-            Debt debt = debtRepository.save(TestFixture.createDebt(memberA));
+            Debt debt = debtRepository.save(TestFixture.createDebt(userA));
 
-            // when & then
             mockMvc.perform(delete("/api/debts/{id}", debt.getId())
-                            .cookie(authCookie(TestFixture.MEMBER_B_ID)))
+                            .cookie(authCookie(userB)))
                     .andExpect(status().isForbidden());
         }
     }
@@ -242,12 +228,10 @@ class DebtControllerTest extends BaseControllerTest {
         @Test
         @DisplayName("정상 요약 조회 → 200")
         void success() throws Exception {
-            // given
-            debtRepository.save(TestFixture.createDebt(memberA));
+            debtRepository.save(TestFixture.createDebt(userA));
 
-            // when & then
             mockMvc.perform(get("/api/debts/summary")
-                            .cookie(authCookie(TestFixture.MEMBER_A_ID)))
+                            .cookie(authCookie(userA)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.totalAmount").exists())
                     .andExpect(jsonPath("$.data.totalMonthlyPayment").exists());
@@ -259,15 +243,5 @@ class DebtControllerTest extends BaseControllerTest {
             mockMvc.perform(get("/api/debts/summary"))
                     .andExpect(status().isUnauthorized());
         }
-    }
-
-    // ─── POST /api/debts/scheduler/payment ──────────────────────────────────────
-
-    @Test
-    @DisplayName("POST /api/debts/scheduler/payment - 수동 스케줄러 실행 → 200")
-    void triggerScheduler_success() throws Exception {
-        mockMvc.perform(post("/api/debts/scheduler/payment")
-                        .cookie(authCookie(TestFixture.MEMBER_A_ID)))
-                .andExpect(status().isOk());
     }
 }

@@ -3,7 +3,7 @@ package com.asset.asset_backend.domains.asset;
 import com.asset.asset_backend.BaseControllerTest;
 import com.asset.asset_backend.common.fixture.TestFixture;
 import com.asset.asset_backend.domains.asset.entity.Asset;
-import com.asset.asset_backend.domains.auth.entity.Member;
+import com.asset.asset_backend.domains.auth.entity.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -18,15 +18,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @DisplayName("AssetController 통합 테스트")
 class AssetControllerTest extends BaseControllerTest {
 
-    private Member memberA;
-    private Member memberB;
+    private User userA;
+    private User userB;
 
     @BeforeEach
     void setUp() {
-        memberA = memberRepository.save(
-                TestFixture.createMember(TestFixture.MEMBER_A_ID, passwordEncoder.encode(TestFixture.RAW_PASSWORD)));
-        memberB = memberRepository.save(
-                TestFixture.createMember(TestFixture.MEMBER_B_ID, passwordEncoder.encode(TestFixture.RAW_PASSWORD)));
+        userA = userRepository.save(
+                TestFixture.createUser(TestFixture.MEMBER_A_ID, passwordEncoder.encode(TestFixture.RAW_PASSWORD)));
+        userB = userRepository.save(
+                TestFixture.createUser(TestFixture.MEMBER_B_ID, passwordEncoder.encode(TestFixture.RAW_PASSWORD)));
     }
 
     private String assetBody() throws Exception {
@@ -48,7 +48,7 @@ class AssetControllerTest extends BaseControllerTest {
         @DisplayName("정상 자산 생성 → 201")
         void success() throws Exception {
             mockMvc.perform(post("/api/assets")
-                            .cookie(authCookie(TestFixture.MEMBER_A_ID))
+                            .cookie(authCookie(userA))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(assetBody()))
                     .andExpect(status().isCreated())
@@ -75,13 +75,11 @@ class AssetControllerTest extends BaseControllerTest {
         @Test
         @DisplayName("정상 목록 조회 → 200, 본인 데이터만")
         void success() throws Exception {
-            // given
-            assetRepository.save(TestFixture.createAsset(memberA));
-            assetRepository.save(TestFixture.createAsset(memberB));   // memberB 데이터
+            assetRepository.save(TestFixture.createAsset(userA));
+            assetRepository.save(TestFixture.createAsset(userB));   // userB 데이터
 
-            // when & then
             mockMvc.perform(get("/api/assets")
-                            .cookie(authCookie(TestFixture.MEMBER_A_ID)))
+                            .cookie(authCookie(userA)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.content.length()").value(1));
         }
@@ -103,12 +101,10 @@ class AssetControllerTest extends BaseControllerTest {
         @Test
         @DisplayName("정상 단건 조회 → 200")
         void success() throws Exception {
-            // given
-            Asset asset = assetRepository.save(TestFixture.createAsset(memberA));
+            Asset asset = assetRepository.save(TestFixture.createAsset(userA));
 
-            // when & then
             mockMvc.perform(get("/api/assets/{id}", asset.getId())
-                            .cookie(authCookie(TestFixture.MEMBER_A_ID)))
+                            .cookie(authCookie(userA)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.id").value(asset.getId()));
         }
@@ -116,21 +112,19 @@ class AssetControllerTest extends BaseControllerTest {
         @Test
         @DisplayName("인증 없이 접근 → 401")
         void unauthorized() throws Exception {
-            Asset asset = assetRepository.save(TestFixture.createAsset(memberA));
+            Asset asset = assetRepository.save(TestFixture.createAsset(userA));
 
             mockMvc.perform(get("/api/assets/{id}", asset.getId()))
                     .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("다른 멤버의 자산 접근 → 403")
+        @DisplayName("다른 유저의 자산 접근 → 403")
         void forbidden() throws Exception {
-            // given
-            Asset asset = assetRepository.save(TestFixture.createAsset(memberA));
+            Asset asset = assetRepository.save(TestFixture.createAsset(userA));
 
-            // when & then (memberB가 memberA 자산 접근)
             mockMvc.perform(get("/api/assets/{id}", asset.getId())
-                            .cookie(authCookie(TestFixture.MEMBER_B_ID)))
+                            .cookie(authCookie(userB)))
                     .andExpect(status().isForbidden());
         }
 
@@ -138,7 +132,7 @@ class AssetControllerTest extends BaseControllerTest {
         @DisplayName("존재하지 않는 ID → 404")
         void notFound() throws Exception {
             mockMvc.perform(get("/api/assets/{id}", 999_999L)
-                            .cookie(authCookie(TestFixture.MEMBER_A_ID)))
+                            .cookie(authCookie(userA)))
                     .andExpect(status().isNotFound());
         }
     }
@@ -152,15 +146,13 @@ class AssetControllerTest extends BaseControllerTest {
         @Test
         @DisplayName("정상 수정 → 200")
         void success() throws Exception {
-            // given
-            Asset asset = assetRepository.save(TestFixture.createAsset(memberA));
+            Asset asset = assetRepository.save(TestFixture.createAsset(userA));
             String body = objectMapper.writeValueAsString(Map.of(
                     "category", "IRP계좌", "owner", "본인",
                     "amount", 20_000_000, "type", "RETIREMENT"));
 
-            // when & then
             mockMvc.perform(put("/api/assets/{id}", asset.getId())
-                            .cookie(authCookie(TestFixture.MEMBER_A_ID))
+                            .cookie(authCookie(userA))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body))
                     .andExpect(status().isOk())
@@ -170,7 +162,7 @@ class AssetControllerTest extends BaseControllerTest {
         @Test
         @DisplayName("인증 없이 접근 → 401")
         void unauthorized() throws Exception {
-            Asset asset = assetRepository.save(TestFixture.createAsset(memberA));
+            Asset asset = assetRepository.save(TestFixture.createAsset(userA));
 
             mockMvc.perform(put("/api/assets/{id}", asset.getId())
                             .contentType(MediaType.APPLICATION_JSON)
@@ -179,14 +171,12 @@ class AssetControllerTest extends BaseControllerTest {
         }
 
         @Test
-        @DisplayName("다른 멤버의 자산 수정 → 403")
+        @DisplayName("다른 유저의 자산 수정 → 403")
         void forbidden() throws Exception {
-            // given
-            Asset asset = assetRepository.save(TestFixture.createAsset(memberA));
+            Asset asset = assetRepository.save(TestFixture.createAsset(userA));
 
-            // when & then
             mockMvc.perform(put("/api/assets/{id}", asset.getId())
-                            .cookie(authCookie(TestFixture.MEMBER_B_ID))
+                            .cookie(authCookie(userB))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(assetBody()))
                     .andExpect(status().isForbidden());
@@ -202,12 +192,10 @@ class AssetControllerTest extends BaseControllerTest {
         @Test
         @DisplayName("정상 삭제 → 200")
         void success() throws Exception {
-            // given
-            Asset asset = assetRepository.save(TestFixture.createAsset(memberA));
+            Asset asset = assetRepository.save(TestFixture.createAsset(userA));
 
-            // when & then
             mockMvc.perform(delete("/api/assets/{id}", asset.getId())
-                            .cookie(authCookie(TestFixture.MEMBER_A_ID)))
+                            .cookie(authCookie(userA)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true));
         }
@@ -215,21 +203,19 @@ class AssetControllerTest extends BaseControllerTest {
         @Test
         @DisplayName("인증 없이 접근 → 401")
         void unauthorized() throws Exception {
-            Asset asset = assetRepository.save(TestFixture.createAsset(memberA));
+            Asset asset = assetRepository.save(TestFixture.createAsset(userA));
 
             mockMvc.perform(delete("/api/assets/{id}", asset.getId()))
                     .andExpect(status().isUnauthorized());
         }
 
         @Test
-        @DisplayName("다른 멤버의 자산 삭제 → 403")
+        @DisplayName("다른 유저의 자산 삭제 → 403")
         void forbidden() throws Exception {
-            // given
-            Asset asset = assetRepository.save(TestFixture.createAsset(memberA));
+            Asset asset = assetRepository.save(TestFixture.createAsset(userA));
 
-            // when & then
             mockMvc.perform(delete("/api/assets/{id}", asset.getId())
-                            .cookie(authCookie(TestFixture.MEMBER_B_ID)))
+                            .cookie(authCookie(userB)))
                     .andExpect(status().isForbidden());
         }
     }
@@ -243,13 +229,11 @@ class AssetControllerTest extends BaseControllerTest {
         @Test
         @DisplayName("정상 투자 연동 자산 조회 → 200")
         void success() throws Exception {
-            // given
-            assetRepository.save(TestFixture.createLinkedAsset(memberA));
-            assetRepository.save(TestFixture.createAsset(memberA));   // 비연동
+            assetRepository.save(TestFixture.createLinkedAsset(userA));
+            assetRepository.save(TestFixture.createAsset(userA));   // 비연동
 
-            // when & then
             mockMvc.perform(get("/api/assets/linked")
-                            .cookie(authCookie(TestFixture.MEMBER_A_ID)))
+                            .cookie(authCookie(userA)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.length()").value(1));
         }
@@ -271,14 +255,12 @@ class AssetControllerTest extends BaseControllerTest {
         @Test
         @DisplayName("정상 순서 변경 → 200")
         void success() throws Exception {
-            // given
-            Asset asset1 = assetRepository.save(TestFixture.createAsset(memberA, 1));
-            assetRepository.save(TestFixture.createAsset(memberA, 2));
+            Asset asset1 = assetRepository.save(TestFixture.createAsset(userA, 1));
+            assetRepository.save(TestFixture.createAsset(userA, 2));
             String body = objectMapper.writeValueAsString(Map.of("targetPosition", 2));
 
-            // when & then
             mockMvc.perform(patch("/api/assets/{id}/reorder", asset1.getId())
-                            .cookie(authCookie(TestFixture.MEMBER_A_ID))
+                            .cookie(authCookie(userA))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body))
                     .andExpect(status().isOk())
@@ -288,7 +270,7 @@ class AssetControllerTest extends BaseControllerTest {
         @Test
         @DisplayName("인증 없이 접근 → 401")
         void unauthorized() throws Exception {
-            Asset asset = assetRepository.save(TestFixture.createAsset(memberA));
+            Asset asset = assetRepository.save(TestFixture.createAsset(userA));
             String body = objectMapper.writeValueAsString(Map.of("targetPosition", 1));
 
             mockMvc.perform(patch("/api/assets/{id}/reorder", asset.getId())
@@ -308,7 +290,7 @@ class AssetControllerTest extends BaseControllerTest {
         @DisplayName("정상 대시보드 요약 조회 → 200")
         void success() throws Exception {
             mockMvc.perform(get("/api/assets/dashboard/summary")
-                            .cookie(authCookie(TestFixture.MEMBER_A_ID)))
+                            .cookie(authCookie(userA)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.totalAmount").exists())
                     .andExpect(jsonPath("$.data.totalMonthlyPayment").exists());
@@ -332,7 +314,7 @@ class AssetControllerTest extends BaseControllerTest {
         @DisplayName("정상 차트 데이터 조회 → 200")
         void success() throws Exception {
             mockMvc.perform(get("/api/assets/dashboard/chart")
-                            .cookie(authCookie(TestFixture.MEMBER_A_ID)))
+                            .cookie(authCookie(userA)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.items").isArray());
         }
@@ -343,15 +325,5 @@ class AssetControllerTest extends BaseControllerTest {
             mockMvc.perform(get("/api/assets/dashboard/chart"))
                     .andExpect(status().isUnauthorized());
         }
-    }
-
-    // ─── POST /api/assets/scheduler/payment ─────────────────────────────────────
-
-    @Test
-    @DisplayName("POST /api/assets/scheduler/payment - 수동 스케줄러 실행 → 200")
-    void triggerScheduler_success() throws Exception {
-        mockMvc.perform(post("/api/assets/scheduler/payment")
-                        .cookie(authCookie(TestFixture.MEMBER_A_ID)))
-                .andExpect(status().isOk());
     }
 }
