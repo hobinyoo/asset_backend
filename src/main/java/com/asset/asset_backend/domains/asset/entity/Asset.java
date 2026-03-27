@@ -31,7 +31,7 @@ public class Asset {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private AssetType type;             // FIXED, REGULAR, VARIABLE
+    private AssetType type;
 
     private Long monthlyPayment;        // 납입금액(월), 없으면 null
 

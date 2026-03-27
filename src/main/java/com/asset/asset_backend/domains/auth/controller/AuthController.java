@@ -13,6 +13,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
@@ -29,6 +30,12 @@ import java.time.Duration;
 public class AuthController {
 
     private final AuthService authService;
+
+    @Value("${cookie.secure}")
+    private boolean cookieSecure;
+
+    @Value("${cookie.domain}")
+    private String cookieDomain;
 
     @PostMapping("/signup")
     public ResponseEntity<ApiResult<UserResponse>> signup(@Valid @RequestBody SignupRequest request) {
@@ -73,30 +80,24 @@ public class AuthController {
         return ResponseEntity.ok(ApiResult.success(UserResponse.from(user), "내 정보를 조회했습니다."));
     }
 
-    private void addCookie(HttpServletResponse response,
-                           String name,
-                           String value,
-                           Duration maxAge) {
-        ResponseCookie cookie = ResponseCookie.from(name, value)
-                .httpOnly(true)
-                .secure(true)
-                .sameSite("Lax")
-                .maxAge(maxAge)
-                .path("/")
-                .domain(".yoojoo-asset-management.xyz")
-                .build();
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+    private void addCookie(HttpServletResponse response, String name, String value, Duration maxAge) {
+        response.addHeader(HttpHeaders.SET_COOKIE, buildCookie(name, value, maxAge).toString());
     }
 
     private void clearCookie(HttpServletResponse response, String name) {
-        ResponseCookie cookie = ResponseCookie.from(name, "")
+        response.addHeader(HttpHeaders.SET_COOKIE, buildCookie(name, "", Duration.ZERO).toString());
+    }
+
+    private ResponseCookie buildCookie(String name, String value, Duration maxAge) {
+        ResponseCookie.ResponseCookieBuilder builder = ResponseCookie.from(name, value)
                 .httpOnly(true)
-                .secure(true)
+                .secure(cookieSecure)
                 .sameSite("Lax")
-                .maxAge(Duration.ZERO)
-                .path("/")
-                .domain(".yoojoo-asset-management.xyz")
-                .build();
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+                .maxAge(maxAge)
+                .path("/");
+        if (!cookieDomain.isBlank()) {
+            builder.domain(cookieDomain);
+        }
+        return builder.build();
     }
 }

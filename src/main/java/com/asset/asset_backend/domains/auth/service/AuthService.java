@@ -9,6 +9,7 @@ import com.asset.asset_backend.domains.auth.entity.User;
 import com.asset.asset_backend.domains.auth.jwt.JwtProvider;
 import com.asset.asset_backend.domains.auth.repository.RefreshTokenRepository;
 import com.asset.asset_backend.domains.auth.repository.UserRepository;
+import com.asset.asset_backend.domains.config.service.UserConfigService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,7 @@ public class AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
+    private final UserConfigService userConfigService;
 
     @Transactional
     public User signup(SignupRequest request) {
@@ -33,7 +35,9 @@ public class AuthService {
                 request.getLoginId(),
                 passwordEncoder.encode(request.getPassword())
         );
-        return userRepository.save(user);
+        userRepository.save(user);
+        userConfigService.createDefaultConfigs(user);
+        return user;
     }
 
     @Transactional

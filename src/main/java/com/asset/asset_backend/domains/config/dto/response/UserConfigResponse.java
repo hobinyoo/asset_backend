@@ -17,10 +17,4 @@ public class UserConfigResponse {
                 .build();
     }
 
-    public static UserConfigResponse ofDefault(String value) {
-        return UserConfigResponse.builder()
-                .id(null)
-                .value(value)
-                .build();
-    }
 }

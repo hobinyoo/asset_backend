@@ -27,7 +27,9 @@ public class UserConfigController {
     @GetMapping("/asset-categories")
     public ResponseEntity<ApiResult<List<UserConfigResponse>>> getAssetCategories(
             @AuthenticationPrincipal Long userId) {
-        return ResponseEntity.ok(ApiResult.success(buildResponse(userId, ConfigType.ASSET_CATEGORY), "자산 카테고리 목록을 조회했습니다."));
+        List<UserConfigResponse> responses = userConfigService.getConfigs(userId, ConfigType.ASSET_CATEGORY).stream()
+                .map(UserConfigResponse::from).collect(Collectors.toList());
+        return ResponseEntity.ok(ApiResult.success(responses, "자산 카테고리 목록을 조회했습니다."));
     }
 
     @PostMapping("/asset-categories")
@@ -52,7 +54,9 @@ public class UserConfigController {
     @GetMapping("/asset-owners")
     public ResponseEntity<ApiResult<List<UserConfigResponse>>> getAssetOwners(
             @AuthenticationPrincipal Long userId) {
-        return ResponseEntity.ok(ApiResult.success(buildResponse(userId, ConfigType.ASSET_OWNER), "소유자 목록을 조회했습니다."));
+        List<UserConfigResponse> responses = userConfigService.getConfigs(userId, ConfigType.ASSET_OWNER).stream()
+                .map(UserConfigResponse::from).collect(Collectors.toList());
+        return ResponseEntity.ok(ApiResult.success(responses, "소유자 목록을 조회했습니다."));
     }
 
     @PostMapping("/asset-owners")
@@ -77,7 +81,9 @@ public class UserConfigController {
     @GetMapping("/investment-categories")
     public ResponseEntity<ApiResult<List<UserConfigResponse>>> getInvestmentCategories(
             @AuthenticationPrincipal Long userId) {
-        return ResponseEntity.ok(ApiResult.success(buildResponse(userId, ConfigType.INVESTMENT_CATEGORY), "투자 카테고리 목록을 조회했습니다."));
+        List<UserConfigResponse> responses = userConfigService.getConfigs(userId, ConfigType.INVESTMENT_CATEGORY).stream()
+                .map(UserConfigResponse::from).collect(Collectors.toList());
+        return ResponseEntity.ok(ApiResult.success(responses, "투자 카테고리 목록을 조회했습니다."));
     }
 
     @PostMapping("/investment-categories")
@@ -97,16 +103,4 @@ public class UserConfigController {
         return ResponseEntity.ok(ApiResult.success(null, "투자 카테고리가 삭제되었습니다."));
     }
 
-    // ─── Helper ──────────────────────────────────────────────────────────────────
-
-    private List<UserConfigResponse> buildResponse(Long userId, ConfigType configType) {
-        List<UserConfigResponse> result = new java.util.ArrayList<>();
-        userConfigService.getDefaultValues(configType).stream()
-                .map(UserConfigResponse::ofDefault)
-                .forEach(result::add);
-        userConfigService.getConfigs(userId, configType).stream()
-                .map(UserConfigResponse::from)
-                .forEach(result::add);
-        return result;
-    }
 }

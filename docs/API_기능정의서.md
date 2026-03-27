@@ -16,7 +16,7 @@
 1. [인증 (Auth)](#1-인증-auth)
 2. [자산 (Asset)](#2-자산-asset)
 3. [부채 (Debt)](#3-부채-debt)
-4. [투자 (Investment)](#4-투자-investment)
+4. [투자 (Investment)](#4-투자-investment) — CRUD + 대시보드
 5. [일일 리포트 (Daily Report)](#5-일일-리포트-daily-report)
 6. [스냅샷 (Snapshot)](#6-스냅샷-snapshot)
 7. [사용자 설정 (Config)](#7-사용자-설정-config)
@@ -55,6 +55,9 @@
 **비즈니스 로직**
 - `loginId` 중복 여부 검사 → 중복 시 예외
 - 비밀번호 BCrypt 인코딩 후 저장
+- 회원가입 완료 시 기본 설정값 자동 insert (`UserConfig`):
+  - ASSET_CATEGORY: 전세보증금, 청약저축, 청년도약적금, IRP, DC, 연금저축, 기타
+  - INVESTMENT_CATEGORY: ETF, 주식, 금, 현금, 기타
 
 ---
 
@@ -578,6 +581,71 @@
 
 ---
 
+### 4-7. 투자 대시보드 요약 조회
+
+| 항목 | 내용 |
+|------|------|
+| **URL** | `GET /api/investments/dashboard/summary` |
+| **인증 필요** | O |
+
+**응답 바디**
+```json
+{
+  "data": {
+    "totalAmount": 20000000,
+    "categories": [
+      { "category": "ETF",  "amount": 12000000, "percentage": 60.0 },
+      { "category": "주식", "amount": 6000000,  "percentage": 30.0 },
+      { "category": "금",   "amount": 2000000,  "percentage": 10.0 }
+    ]
+  }
+}
+```
+
+**비즈니스 로직**
+- `AssetType.INVESTMENT`인 자산에 연결된 Investment 전체 조회
+- 각 Investment의 현재가 조회 (`StockPriceService`) → 평가금액 계산 (OVERSEAS: 환율 적용)
+- `investment.category`별 평가금액 합산
+- 전체 합계 대비 각 카테고리 비율 계산 (소수점 1자리)
+
+---
+
+### 4-8. 투자 대시보드 차트 데이터 조회
+
+| 항목 | 내용 |
+|------|------|
+| **URL** | `GET /api/investments/dashboard/chart` |
+| **인증 필요** | O |
+
+**쿼리 파라미터**
+| 파라미터 | 타입 | 기본값 | 설명 |
+|----------|------|--------|------|
+| period | String | 30d | `7d` \| `30d` \| `90d` \| `1y` |
+
+**응답 바디**
+```json
+{
+  "data": {
+    "period": "30d",
+    "data": [
+      {
+        "snapshotDate": "2026-03-01",
+        "categories": [
+          { "category": "ETF",  "amount": 11000000 },
+          { "category": "주식", "amount": 5500000 }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**비즈니스 로직**
+- period → startDate 변환 (`7d`: -7일, `30d`: -30일, `90d`: -90일, `1y`: -1년)
+- `AssetDailySnapshot` 날짜 범위 조회 (차트의 날짜 기준)
+- 각 날짜의 카테고리별 금액은 `InvestmentCategorySnapshot` 테이블에서 조회
+- N+1 방지: 날짜 범위 내 카테고리 스냅샷 전체 일괄 조회 후 날짜별 그룹핑
+
 ---
 
 ## 5. 일일 리포트 (Daily Report)
@@ -640,6 +708,10 @@
 
 ## 6. 스냅샷 (Snapshot)
 
+> 스냅샷은 두 테이블로 관리됩니다:
+> - `asset_daily_snapshot` — 날짜별 자산/부채/순자산 총합
+> - `investment_category_snapshot` — 날짜별 투자 카테고리별 금액
+
 ### 6-1. 자산 일일 스냅샷 조회
 
 | 항목 | 내용 |
@@ -682,10 +754,11 @@
 ## 7. 사용자 설정 (Config)
 
 > 자산 카테고리 / 자산 소유자 / 투자 카테고리 3종류를 동일한 구조로 관리합니다.
+> **기본값은 회원가입 시 DB에 insert되므로** 별도 하드코딩 없이 사용자 데이터로 관리됩니다.
 
-### 기본값
+### 설정 종류별 URL
 
-| 설정 종류 | URL prefix | 기본값 |
+| 설정 종류 | URL prefix | 회원가입 시 기본 삽입값 |
 |----------|-----------|--------|
 | 자산 카테고리 | `/api/config/asset-categories` | 전세보증금, 청약저축, 청년도약적금, IRP, DC, 연금저축, 기타 |
 | 자산 소유자 | `/api/config/asset-owners` | (없음) |
@@ -704,13 +777,14 @@
 ```json
 {
   "data": [
-    { "id": null,  "value": "IRP" },
-    { "id": 1,     "value": "사용자 추가값" }
+    { "id": 1, "value": "IRP" },
+    { "id": 2, "value": "ETF" },
+    { "id": 3, "value": "사용자 추가값" }
   ]
 }
 ```
 
-**비즈니스 로직**: 기본값(id=null) + 사용자 정의값(id!=null) 합쳐서 반환 (생성시간 오름차순)
+**비즈니스 로직**: 해당 userId의 설정값만 반환 (생성시간 오름차순)
 
 ---
 
@@ -727,7 +801,6 @@
 ```
 
 **비즈니스 로직**
-- 기본값 목록에 포함 여부 검사 → 포함 시 예외
 - 동일 사용자 + 동일 타입 + 동일 값 중복 검사 → 중복 시 예외
 
 ---
@@ -739,7 +812,7 @@
 | **URL** | `DELETE /api/config/{type}/{id}` |
 | **인증 필요** | O |
 
-**비즈니스 로직**: 소유권 검증 후 삭제 (기본값은 삭제 불가)
+**비즈니스 로직**: 소유권 검증 후 삭제
 
 ---
 
@@ -791,7 +864,8 @@
 1. `linkedToInvestment=true`인 자산에 연결된 Investment 현재가를 Yahoo Finance API로 조회 후 `amount` 동기화
 2. 전체 자산 합계 / RETIREMENT 합계 / INVESTMENT 합계 / 전체 부채 합계 집계
 3. `netWorthAmount = 총자산 - 총부채` 계산
-4. `AssetDailySnapshot` 저장
+4. `AssetDailySnapshot` upsert (당일 기존 row 있으면 업데이트)
+5. 투자 카테고리별 평가금액 집계 후 `InvestmentCategorySnapshot` upsert (당일 기존 row 삭제 후 재삽입)
 
 ---
 
