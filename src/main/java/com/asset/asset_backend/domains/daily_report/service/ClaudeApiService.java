@@ -37,7 +37,8 @@ public class ClaudeApiService {
                     "max_tokens", 4000,
                     "messages", List.of(
                             Map.of("role", "user", "content", prompt)
-                    )
+                    ),
+                    "tools", List.of(Map.of("type", "web_search_20250305", "name", "web_search"))
             );
 
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
@@ -45,9 +46,12 @@ public class ClaudeApiService {
                     CLAUDE_API_URL, HttpMethod.POST, request, Map.class
             );
 
-            // content[0].text 추출
             List<Map<String, Object>> content = (List<Map<String, Object>>) response.getBody().get("content");
-            return (String) content.get(0).get("text");
+            return content.stream()
+                    .filter(c -> "text".equals(c.get("type")))
+                    .map(c -> (String) c.get("text"))
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("Claude 응답에서 텍스트를 찾을 수 없습니다"));
 
         } catch (Exception e) {
             log.error("Claude API 호출 실패: {}", e.getMessage());
