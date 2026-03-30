@@ -10,7 +10,6 @@ import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -38,8 +37,7 @@ public class ClaudeApiService {
                     "max_tokens", 4000,
                     "messages", List.of(
                             Map.of("role", "user", "content", prompt)
-                    ),
-                    "tools", List.of(Map.of("type", "web_search_20250305", "name", "web_search"))
+                    )
             );
 
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
@@ -47,12 +45,9 @@ public class ClaudeApiService {
                     CLAUDE_API_URL, HttpMethod.POST, request, Map.class
             );
 
+            // content[0].text 추출
             List<Map<String, Object>> content = (List<Map<String, Object>>) response.getBody().get("content");
-            return content.stream()
-                    .filter(c -> "text".equals(c.get("type")))
-                    .map(c -> (String) c.get("text"))
-                    .collect(Collectors.joining());
-
+            return (String) content.get(0).get("text");
 
         } catch (Exception e) {
             log.error("Claude API 호출 실패: {}", e.getMessage());
