@@ -10,6 +10,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -50,8 +51,8 @@ public class ClaudeApiService {
             return content.stream()
                     .filter(c -> "text".equals(c.get("type")))
                     .map(c -> (String) c.get("text"))
-                    .findFirst()
-                    .orElseThrow(() -> new RuntimeException("Claude 응답에서 텍스트를 찾을 수 없습니다"));
+                    .collect(Collectors.joining());
+
 
         } catch (Exception e) {
             log.error("Claude API 호출 실패: {}", e.getMessage());
