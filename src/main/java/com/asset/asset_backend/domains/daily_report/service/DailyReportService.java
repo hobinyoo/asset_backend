@@ -1,5 +1,6 @@
 package com.asset.asset_backend.domains.daily_report.service;
 
+import com.asset.asset_backend.common.enums.MarketType;
 import com.asset.asset_backend.common.exception.BaseException;
 import com.asset.asset_backend.common.exception.ErrorCode;
 import com.asset.asset_backend.domains.auth.entity.User;
@@ -8,6 +9,8 @@ import com.asset.asset_backend.domains.daily_report.entity.DailyReport;
 import com.asset.asset_backend.domains.daily_report.repository.DailyReportRepository;
 import com.asset.asset_backend.domains.investment.entity.Investment;
 import com.asset.asset_backend.domains.investment.repository.InvestmentRepository;
+import com.asset.asset_backend.domains.investment.service.ExchangeRateService;
+import com.asset.asset_backend.domains.investment.service.StockPriceService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +30,8 @@ public class DailyReportService {
     private final DailyReportRepository dailyReportRepository;
     private final ClaudeApiService claudeApiService;
     private final UserRepository userRepository;
+    private final StockPriceService stockPriceService;
+    private final ExchangeRateService exchangeRateService;
 
     @Transactional
     public DailyReport generateDailyReport(Long userId) {
@@ -58,24 +63,52 @@ public class DailyReportService {
     }
 
     private String buildStockInfo(List<Investment> investments) {
+        boolean hasOverseas = investments.stream().anyMatch(inv -> inv.getMarketType() == MarketType.OVERSEAS);
+        Double exchangeRate = hasOverseas ? exchangeRateService.getUsdToKrw() : null;
+
         return investments.stream()
                 .collect(Collectors.groupingBy(Investment::getCategory))
                 .entrySet().stream()
                 .map(entry -> {
                     String category = entry.getKey();
                     String items = entry.getValue().stream()
-                            .map(inv -> String.format(
-                                    "  - %s | 계좌: %s | 명의: %s | 매수단가: %s | 수량: %s",
-                                    inv.getStockName(),
-                                    inv.getAsset().getCategory(),
-                                    inv.getOwner(),
-                                    inv.getPurchasePrice() != null ? inv.getPurchasePrice() + "원" : "직접입력",
-                                    inv.getQuantity() != null ? inv.getQuantity() + "주" : "-"
-                            ))
+                            .map(inv -> formatInvestmentLine(inv, exchangeRate))
                             .collect(Collectors.joining("\n"));
                     return "[" + category + "]\n" + items;
                 })
                 .collect(Collectors.joining("\n\n"));
+    }
+
+    private String formatInvestmentLine(Investment inv, Double exchangeRate) {
+        String purchasePriceStr = inv.getPurchasePrice() != null ? inv.getPurchasePrice() + "원" : "직접입력";
+        String quantityStr = inv.getQuantity() != null ? inv.getQuantity() + "주" : "-";
+
+        String currentPriceStr = "-";
+        String profitRateStr = "-";
+
+        Long currentPrice = stockPriceService.getCurrentPrice(inv.getTicker());
+        if (currentPrice != null && inv.getQuantity() != null && inv.getPurchasePrice() != null) {
+            long currentPriceKrw = (inv.getMarketType() == MarketType.OVERSEAS && exchangeRate != null)
+                    ? Math.round(currentPrice * exchangeRate)
+                    : currentPrice;
+            currentPriceStr = currentPriceKrw + "원";
+
+            double purchaseTotal = (double) inv.getPurchasePrice() * inv.getQuantity();
+            double currentTotal = (double) currentPriceKrw * inv.getQuantity();
+            double profitRate = (currentTotal - purchaseTotal) / purchaseTotal * 100;
+            profitRateStr = String.format("%.2f%%", profitRate);
+        }
+
+        return String.format(
+                "  - %s | 계좌: %s | 명의: %s | 매수단가: %s | 현재가: %s | 수익률: %s | 수량: %s",
+                inv.getStockName(),
+                inv.getAsset().getCategory(),
+                inv.getOwner(),
+                purchasePriceStr,
+                currentPriceStr,
+                profitRateStr,
+                quantityStr
+        );
     }
 
     private String buildFullPrompt(LocalDate date, String stockInfo) {
@@ -110,6 +143,12 @@ public class DailyReportService {
                   <p class="opportunity"><!-- 오늘 기준 기회 요인 --></p>
                 </section>
 
+                <section class="recommendation">
+                  <h2>포트폴리오 다각화 추천</h2>
+                  <p class="analysis"><!-- 현재 포트폴리오 편중 분석 --></p>
+                  <p class="recommendation"><!-- 다각화를 위한 추천 종목 또는 섹터 2-3가지 이유 포함 --></p>
+                </section>
+
                 <section class="action">
                   <h2>오늘의 액션</h2>
                   <p><!-- 오늘 취할 구체적인 투자 액션 1가지 --></p>
@@ -133,6 +172,7 @@ public class DailyReportService {
                 시장: {한 줄 시장 동향}
                 주목: {오늘 가장 주목할 카테고리 또는 이슈}
                 액션: {오늘 취할 액션 한 줄}
+                추천: {다각화를 위한 추천 종목 또는 섹터 한 줄}
                 """, date, stockInfo);
     }
 
