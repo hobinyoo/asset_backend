@@ -28,9 +28,10 @@ cookie:
   secure: true
   domain: .yoojoo-asset-management.xyz
 
-naver:
-  client-id: ${NAVER_CLIENT_ID}
-  client-secret: ${NAVER_CLIENT_SECRET}
+news:
+  naver:
+    client-id: ${NAVER_CLIENT_ID}
+    client-secret: ${NAVER_CLIENT_SECRET}
   google-rss:
     base-url: ${GOOGLE_RSS_BASE_URL}
 
