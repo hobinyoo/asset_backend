@@ -27,3 +27,18 @@ jwt:
 cookie:
   secure: true
   domain: .yoojoo-asset-management.xyz
+
+naver:
+  client-id: ${NAVER_CLIENT_ID}
+  client-secret: ${NAVER_CLIENT_SECRET}
+  google-rss:
+    base-url: ${GOOGLE_RSS_BASE_URL}
+
+openai:
+  api-key: ${OPENAI_API_KEY}
+  embedding-url: ${OPENAI_EMBEDDING_URL}
+
+pinecone:
+  api-key: ${PINECONE_API_KEY}
+  host: ${PINECONE_HOST}
+  index-name: ${PINECONE_INDEX_NAME}

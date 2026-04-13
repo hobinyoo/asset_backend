@@ -53,14 +53,23 @@ jobs:
             docker stop asset-backend || true
             docker rm asset-backend || true
             docker run -d \
-              --name asset-backend \
-              -p 8080:8080 \
-              --restart unless-stopped \
-              --add-host=host.docker.internal:host-gateway \
-              -e DB_URL=${{ secrets.DB_URL }} \
-              -e DB_USERNAME=${{ secrets.DB_USERNAME }} \
-              -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
-              -e ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }} \
-              -e JWT_SECRET=${{ secrets.JWT_SECRET }} \
-              ${{ secrets.DOCKER_USERNAME }}/asset-backend:latest
+            --name asset-backend \
+            -p 8080:8080 \
+            --restart unless-stopped \
+            --add-host=host.docker.internal:host-gateway \
+            -e DB_URL=${{ secrets.DB_URL }} \
+            -e DB_USERNAME=${{ secrets.DB_USERNAME }} \
+            -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
+            -e ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }} \
+            -e JWT_SECRET=${{ secrets.JWT_SECRET }} \
+            -e NAVER_CLIENT_ID=${{ secrets.NAVER_CLIENT_ID }} \
+            -e NAVER_CLIENT_SECRET=${{ secrets.NAVER_CLIENT_SECRET }} \
+            -e GOOGLE_RSS_BASE_URL=${{ secrets.GOOGLE_RSS_BASE_URL }} \
+            -e OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} \
+            -e OPENAI_EMBEDDING_URL=${{ secrets.OPENAI_EMBEDDING_URL }} \
+            -e PINECONE_API_KEY=${{ secrets.PINECONE_API_KEY }} \
+            -e PINECONE_HOST=${{ secrets.PINECONE_HOST }} \
+            -e PINECONE_INDEX_NAME=${{ secrets.PINECONE_INDEX_NAME }} \
+            ${{ secrets.DOCKER_USERNAME }}/asset-backend:latest
+        
             docker image prune -f
