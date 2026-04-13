@@ -11,6 +11,8 @@ import com.asset.asset_backend.domains.investment.entity.Investment;
 import com.asset.asset_backend.domains.investment.repository.InvestmentRepository;
 import com.asset.asset_backend.domains.investment.service.ExchangeRateService;
 import com.asset.asset_backend.domains.investment.service.StockPriceService;
+import com.asset.asset_backend.domains.news.dto.news.PineconeQueryResponse;
+import com.asset.asset_backend.domains.news.service.PineconeService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -32,6 +35,7 @@ public class DailyReportService {
     private final UserRepository userRepository;
     private final StockPriceService stockPriceService;
     private final ExchangeRateService exchangeRateService;
+    private final PineconeService pineconeService;
 
     @Transactional
     public DailyReport generateDailyReport(Long userId) {
@@ -51,12 +55,13 @@ public class DailyReportService {
         }
 
         String stockInfo = buildStockInfo(investments);
+        String newsContext = buildNewsContext(investments);
 
         log.info("Claude API 호출 시작 - 전체 리포트");
-        String fullContent = claudeApiService.generateReport(buildFullPrompt(date, stockInfo));
+        String fullContent = claudeApiService.generateReport(buildFullPrompt(date, stockInfo, newsContext));
 
         log.info("Claude API 호출 시작 - 요약");
-        String summaryContent = claudeApiService.generateReport(buildSummaryPrompt(date, stockInfo));
+        String summaryContent = claudeApiService.generateReport(buildSummaryPrompt(date, stockInfo, newsContext));
 
         DailyReport report = DailyReport.create(date, fullContent, summaryContent, user);
         return dailyReportRepository.save(report);
@@ -111,14 +116,48 @@ public class DailyReportService {
         );
     }
 
-    private String buildFullPrompt(LocalDate date, String stockInfo) {
+    private String buildNewsContext(List<Investment> investments) {
+        List<String> tickers = investments.stream()
+                .map(Investment::getTicker)
+                .filter(t -> t != null && !t.isBlank())
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (tickers.isEmpty()) return "";
+
+        StringBuilder sb = new StringBuilder("[관련 뉴스]\n");
+        boolean hasAny = false;
+
+        for (String ticker : tickers) {
+            try {
+                PineconeQueryResponse result = pineconeService.query(ticker, 3);
+                if (result.getMatches() == null || result.getMatches().isEmpty()) continue;
+
+                for (PineconeQueryResponse.Match match : result.getMatches()) {
+                    java.util.Map<String, String> meta = match.getMetadata();
+                    String title = meta.getOrDefault("title", "");
+                    String publishedAt = meta.getOrDefault("publishedAt", "");
+                    String content = meta.getOrDefault("content", "");
+                    sb.append(String.format("- %s: %s (%s) - %s\n", ticker, title, publishedAt, content));
+                    hasAny = true;
+                }
+            } catch (Exception e) {
+                log.warn("[DailyReport] ticker={} 뉴스 조회 실패: {}", ticker, e.getMessage());
+            }
+        }
+
+        return hasAny ? sb.toString().trim() : "";
+    }
+
+    private String buildFullPrompt(LocalDate date, String stockInfo, String newsContext) {
+        String newsSection = newsContext.isBlank() ? "" : "\n" + newsContext + "\n";
         return String.format("""
                 당신은 개인 투자 포트폴리오 분석 전문가입니다.
                 오늘 날짜: %s
 
                 아래는 현재 보유 중인 투자 종목입니다 (카테고리별 정리):
                 %s
-
+                %s
                 반드시 아래 HTML 구조 그대로 작성하세요.
                 다른 텍스트, 마크다운, 코드블록 없이 HTML 태그만 출력하세요.
 
@@ -155,17 +194,18 @@ public class DailyReportService {
                 </section>
 
                 응답은 반드시 3000토큰 이내로 작성하세요.
-                """, date, stockInfo);
+                """, date, stockInfo, newsSection);
     }
 
-    private String buildSummaryPrompt(LocalDate date, String stockInfo) {
+    private String buildSummaryPrompt(LocalDate date, String stockInfo, String newsContext) {
+        String newsSection = newsContext.isBlank() ? "" : "\n" + newsContext + "\n";
         return String.format("""
                 당신은 개인 투자 포트폴리오 분석 전문가입니다.
                 오늘 날짜: %s
 
                 아래는 현재 보유 중인 투자 종목입니다 (카테고리별 정리):
                 %s
-
+                %s
                 반드시 아래 형식 그대로만 출력하세요. 다른 텍스트는 절대 추가하지 마세요.
 
                 📈 {날짜} 데일리 브리핑
@@ -173,7 +213,7 @@ public class DailyReportService {
                 주목: {오늘 가장 주목할 카테고리 또는 이슈}
                 액션: {오늘 취할 액션 한 줄}
                 추천: {다각화를 위한 추천 종목 또는 섹터 한 줄}
-                """, date, stockInfo);
+                """, date, stockInfo, newsSection);
     }
 
     public List<DailyReport> getAllReports(Long userId) {
