@@ -18,6 +18,6 @@ public class PineconeQueryResponse {
     public static class Match {
         private String id;
         private float score;
-        private Map<String, String> metadata;
+        private Map<String, Object> metadata;
     }
 }

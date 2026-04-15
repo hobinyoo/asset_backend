@@ -14,6 +14,7 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
+import org.jsoup.Jsoup;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -22,9 +23,11 @@ import org.w3c.dom.NodeList;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.ByteArrayInputStream;
+import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -47,8 +50,6 @@ public class NewsCollectorService {
     private String googleRssBaseUrl;
 
     private static final String NAVER_NEWS_URL = "https://openapi.naver.com/v1/search/news";
-    private static final DateTimeFormatter PINECONE_DATE_FORMAT =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
     private static final int DATE_FILTER_DAYS = 7;
 
     private final NewsArticleRepository newsArticleRepository;
@@ -92,17 +93,16 @@ public class NewsCollectorService {
     public int collectFromNaver(String query, String ticker) {
         log.info("[NewsCollector] 네이버 API 호출 - query: {}", query);
         String encodeQuery = URLEncoder.encode(query, StandardCharsets.UTF_8);
-        String url = NAVER_NEWS_URL + "?query=" + encodeQuery + "&display=10&sort=sim";
-        log.info("[NewsCollector] 네이버 API URL: {}", url);
+        URI uri = URI.create(NAVER_NEWS_URL + "?query=" + encodeQuery + "&display=10&sort=sim");
+        log.info("[NewsCollector] 네이버 API URL: {}", uri);
 
         HttpHeaders headers = new HttpHeaders();
-
         headers.set("X-Naver-Client-Id", naverClientId);
         headers.set("X-Naver-Client-Secret", naverClientSecret);
         HttpEntity<Void> entity = new HttpEntity<>(headers);
 
         ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
-                url, HttpMethod.GET, entity, new ParameterizedTypeReference<>() {}
+                uri, HttpMethod.GET, entity, new ParameterizedTypeReference<>() {}
         );
 
         log.info("[NewsCollector] 네이버 응답 body: {}", response.getBody());
@@ -128,7 +128,19 @@ public class NewsCollectorService {
             }
 
             String title = stripHtmlTags((String) item.get("title"));
-            String content = stripHtmlTags((String) item.get("description"));
+            String originalLink = (String) item.get("originallink");
+            String description = stripHtmlTags((String) item.get("description"));
+
+            String content = null;
+            if (originalLink != null && !originalLink.isBlank()) {
+                content = crawlContent(originalLink);
+            }
+            if (content != null && !content.isBlank()) {
+                log.info("[NewsCollector] 크롤링 성공 - url: {}, contentLength: {}", originalLink, content.length());
+            } else {
+                log.warn("[NewsCollector] 크롤링 실패, description fallback - url: {}", originalLink);
+                content = description;
+            }
 
             NewsArticle article = NewsArticle.create(title, content, articleUrl,
                     "naver", publishedAt, ticker);
@@ -208,7 +220,7 @@ public class NewsCollectorService {
                         (article.getContent() != null ? article.getContent() : "");
                 List<Float> embedding = embeddingService.embed(text);
 
-                Map<String, String> metadata = buildMetadata(article);
+                Map<String, Object> metadata = buildMetadata(article);
                 PineconeUpsertRequest.Vector vector = PineconeUpsertRequest.Vector.of(
                         "news_" + article.getId(), embedding, metadata
                 );
@@ -227,19 +239,15 @@ public class NewsCollectorService {
         return vectors.size();
     }
 
-    private Map<String, String> buildMetadata(NewsArticle article) {
-        String content = article.getContent() != null ? article.getContent() : "";
-        String contentPreview = content.length() > 200 ? content.substring(0, 200) : content;
-
-        return Map.of(
-                "title", article.getTitle() != null ? article.getTitle() : "",
-                "url", article.getUrl() != null ? article.getUrl() : "",
-                "source", article.getSource() != null ? article.getSource() : "",
-                "ticker", article.getTicker() != null ? article.getTicker() : "",
-                "publishedAt", article.getPublishedAt() != null
-                        ? article.getPublishedAt().format(PINECONE_DATE_FORMAT) : "",
-                "content", contentPreview
-        );
+    private Map<String, Object> buildMetadata(NewsArticle article) {
+        Map<String, Object> metadata = new java.util.HashMap<>();
+        metadata.put("title", article.getTitle() != null ? article.getTitle() : "");
+        metadata.put("url", article.getUrl() != null ? article.getUrl() : "");
+        metadata.put("source", article.getSource() != null ? article.getSource() : "");
+        metadata.put("ticker", article.getTicker() != null ? article.getTicker() : "");
+        metadata.put("publishedAt", article.getPublishedAt() != null
+                ? article.getPublishedAt().toEpochSecond(ZoneOffset.UTC) : 0L);
+        return metadata;
     }
 
     private LocalDateTime parsePublishedAt(String pubDate) {
@@ -257,6 +265,26 @@ public class NewsCollectorService {
         NodeList nodes = element.getElementsByTagName(tagName);
         if (nodes.getLength() == 0) return null;
         return nodes.item(0).getTextContent();
+    }
+
+    private String crawlContent(String url) {
+        try {
+            org.jsoup.nodes.Document doc = Jsoup.connect(url)
+                    .userAgent("Mozilla/5.0")
+                    .timeout(5000)
+                    .get();
+            String[] selectors = {"#article-view-content-div", ".article-body", "article"};
+            for (String selector : selectors) {
+                String text = doc.select(selector).text();
+                if (text != null && !text.isBlank()) {
+                    return text;
+                }
+            }
+            return null;
+        } catch (Exception e) {
+            log.warn("[NewsCollector] 크롤링 예외 - url: {}, 원인: {}", url, e.getMessage());
+            return null;
+        }
     }
 
     private String stripHtmlTags(String html) {

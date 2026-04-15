@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -47,12 +48,21 @@ public class PineconeService {
 
     public PineconeQueryResponse query(String text, int topK) {
         List<Float> vector = embeddingService.embed(text);
-        return query(vector, topK);
+        return query(vector, topK, null);
+    }
+
+    public PineconeQueryResponse query(String text, int topK, Map<String, Object> filter) {
+        List<Float> vector = embeddingService.embed(text);
+        return query(vector, topK, filter);
     }
 
     public PineconeQueryResponse query(List<Float> vector, int topK) {
+        return query(vector, topK, null);
+    }
+
+    public PineconeQueryResponse query(List<Float> vector, int topK, Map<String, Object> filter) {
         HttpHeaders headers = buildHeaders();
-        PineconeQueryRequest request = PineconeQueryRequest.of(vector, topK, NAMESPACE);
+        PineconeQueryRequest request = PineconeQueryRequest.of(vector, topK, NAMESPACE, filter);
         HttpEntity<PineconeQueryRequest> entity = new HttpEntity<>(request, headers);
 
         ResponseEntity<PineconeQueryResponse> response = restTemplate.exchange(

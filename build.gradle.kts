@@ -61,6 +61,9 @@ dependencies {
     // Swagger
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.6")
 
+    // Jsoup
+    implementation("org.jsoup:jsoup:1.17.2")
+
 
 }
 

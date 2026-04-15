@@ -24,15 +24,15 @@ public class PineconeUpsertRequest {
     public static class Vector {
         private final String id;
         private final List<Float> values;
-        private final Map<String, String> metadata;
+        private final Map<String, Object> metadata;
 
-        private Vector(String id, List<Float> values, Map<String, String> metadata) {
+        private Vector(String id, List<Float> values, Map<String, Object> metadata) {
             this.id = id;
             this.values = values;
             this.metadata = metadata;
         }
 
-        public static Vector of(String id, List<Float> values, Map<String, String> metadata) {
+        public static Vector of(String id, List<Float> values, Map<String, Object> metadata) {
             return new Vector(id, values, metadata);
         }
     }

@@ -12,6 +12,7 @@ import com.asset.asset_backend.domains.investment.repository.InvestmentRepositor
 import com.asset.asset_backend.domains.investment.service.ExchangeRateService;
 import com.asset.asset_backend.domains.investment.service.StockPriceService;
 import com.asset.asset_backend.domains.news.dto.news.PineconeQueryResponse;
+import com.asset.asset_backend.domains.news.repository.NewsArticleRepository;
 import com.asset.asset_backend.domains.news.service.PineconeService;
 
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -36,6 +39,7 @@ public class DailyReportService {
     private final StockPriceService stockPriceService;
     private final ExchangeRateService exchangeRateService;
     private final PineconeService pineconeService;
+    private final NewsArticleRepository newsArticleRepository;
 
     @Transactional
     public DailyReport generateDailyReport(Long userId) {
@@ -123,30 +127,48 @@ public class DailyReportService {
                 .distinct()
                 .collect(Collectors.toList());
 
-        if (tickers.isEmpty()) return "";
+        if (tickers.isEmpty()) {
+            log.info("[DailyReport] 뉴스 수집 대상 ticker 없음");
+            return "";
+        }
+
+        long filterTimestamp = LocalDateTime.now().minusDays(7).toEpochSecond(ZoneOffset.UTC);
+        Map<String, Object> filter = Map.of("publishedAt", Map.of("$gte", filterTimestamp));
+
+        log.info("[DailyReport] 뉴스 수집 시작 - tickers={}, filterTimestamp={}", tickers, filterTimestamp);
 
         StringBuilder sb = new StringBuilder("[관련 뉴스]\n");
-        boolean hasAny = false;
+        boolean[] hasAny = {false};
 
         for (String ticker : tickers) {
             try {
-                PineconeQueryResponse result = pineconeService.query(ticker, 3);
-                if (result.getMatches() == null || result.getMatches().isEmpty()) continue;
+                PineconeQueryResponse result = pineconeService.query(ticker, 3, filter);
+                if (result.getMatches() == null || result.getMatches().isEmpty()) {
+                    log.info("[DailyReport] ticker={} 조회 결과 없음", ticker);
+                    continue;
+                }
 
+                log.info("[DailyReport] ticker={} 조회 결과 {}건", ticker, result.getMatches().size());
                 for (PineconeQueryResponse.Match match : result.getMatches()) {
-                    java.util.Map<String, String> meta = match.getMetadata();
-                    String title = meta.getOrDefault("title", "");
-                    String publishedAt = meta.getOrDefault("publishedAt", "");
-                    String content = meta.getOrDefault("content", "");
-                    sb.append(String.format("- %s: %s (%s) - %s\n", ticker, title, publishedAt, content));
-                    hasAny = true;
+                    String rawId = match.getId(); // "news_44"
+                    try {
+                        Long articleId = Long.parseLong(rawId.replace("news_", ""));
+                        newsArticleRepository.findById(articleId).ifPresent(article -> {
+                            log.info("[DailyReport] ticker={} 뉴스 - title={}", ticker, article.getTitle());
+                            sb.append(String.format("- [%s] %s\n%s\n\n",
+                                    ticker, article.getTitle(), article.getContent()));
+                            hasAny[0] = true;
+                        });
+                    } catch (NumberFormatException e) {
+                        log.warn("[DailyReport] 잘못된 Pinecone ID - {}", rawId);
+                    }
                 }
             } catch (Exception e) {
                 log.warn("[DailyReport] ticker={} 뉴스 조회 실패: {}", ticker, e.getMessage());
             }
         }
 
-        return hasAny ? sb.toString().trim() : "";
+        return hasAny[0] ? sb.toString().trim() : "";
     }
 
     private String buildFullPrompt(LocalDate date, String stockInfo, String newsContext) {
