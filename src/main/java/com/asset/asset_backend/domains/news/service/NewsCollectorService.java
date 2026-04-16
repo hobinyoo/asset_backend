@@ -51,7 +51,7 @@ public class NewsCollectorService {
     private String googleRssBaseUrl;
 
     private static final String NAVER_NEWS_URL = "https://openapi.naver.com/v1/search/news";
-    private static final int DATE_FILTER_DAYS = 30;
+    private static final int DATE_FILTER_DAYS = 14;
 
     private final NewsArticleRepository newsArticleRepository;
     private final InvestmentRepository investmentRepository;

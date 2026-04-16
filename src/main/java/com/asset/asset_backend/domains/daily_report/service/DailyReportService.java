@@ -146,7 +146,7 @@ public class DailyReportService {
             return "";
         }
 
-        long filterTimestamp = LocalDateTime.now().minusDays(14).toEpochSecond(ZoneOffset.UTC);
+        long filterTimestamp = LocalDateTime.now().minusDays(7).toEpochSecond(ZoneOffset.UTC);
         log.info("[DailyReport] 뉴스 수집 시작 - tickers={}, filterTimestamp={}", tickerToName.keySet(), filterTimestamp);
 
         StringBuilder sb = new StringBuilder("[관련 뉴스]\n");
@@ -163,7 +163,7 @@ public class DailyReportService {
 
             try {
                 String query = stockName + " 주가 실적 투자 리스크 전망 시장 영향";
-                PineconeQueryResponse result = pineconeService.query(query, 1, filter);
+                PineconeQueryResponse result = pineconeService.query(query, 2, filter);
                 if (result.getMatches() == null || result.getMatches().isEmpty()) {
                     log.info("[DailyReport] ticker={} 조회 결과 없음", ticker);
                     continue;
