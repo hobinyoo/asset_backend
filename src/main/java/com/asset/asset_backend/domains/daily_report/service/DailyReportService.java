@@ -22,7 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -57,21 +56,8 @@ public class DailyReportService {
             throw new RuntimeException("보유 종목이 없습니다.");
         }
 
-        List<Investment> topInvestments = investments.stream()
-                .collect(Collectors.groupingBy(Investment::getTicker))
-                .entrySet().stream()
-                .sorted(Comparator.comparingLong(e -> -e.getValue().stream()
-                        .filter(i -> i.getPurchasePrice() != null && i.getQuantity() != null)
-                        .mapToLong(i -> (long) i.getPurchasePrice() * i.getQuantity())
-                        .sum()))
-                .limit(10)
-                .flatMap(e -> e.getValue().stream())
-                .collect(Collectors.toList());
-
-        log.info("[DailyReport] 전체 종목 {}개 → 상위 10개 ticker로 필터링", investments.size());
-
-        String stockInfo = buildStockInfo(topInvestments);
-        String newsContext = buildNewsContext(topInvestments);
+        String stockInfo = buildStockInfo(investments);
+        String newsContext = buildNewsContext(investments);
 
         log.info("Claude API 호출 시작 - 전체 리포트");
         String fullContent = claudeApiService.generateReport(buildFullPrompt(date, stockInfo, newsContext));

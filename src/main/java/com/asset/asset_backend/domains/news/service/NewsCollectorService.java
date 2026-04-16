@@ -32,8 +32,10 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -65,8 +67,19 @@ public class NewsCollectorService {
         List<Investment> investments = investmentRepository.findByAsset_UserIdWithAsset(userId);
         log.info("[NewsCollector] 뉴스 수집 시작 - userId: {}, 보유 종목 수: {}", userId, investments.size());
 
+        List<Investment> topInvestments = investments.stream()
+                .collect(Collectors.groupingBy(Investment::getTicker))
+                .entrySet().stream()
+                .sorted(Comparator.comparingLong(e -> -e.getValue().stream()
+                        .filter(i -> i.getPurchasePrice() != null && i.getQuantity() != null)
+                        .mapToLong(i -> (long) i.getPurchasePrice() * i.getQuantity())
+                        .sum()))
+                .limit(10)
+                .flatMap(e -> e.getValue().stream())
+                .collect(Collectors.toList());
+
         int total = 0;
-        for (Investment inv : investments) {
+        for (Investment inv : topInvestments) {
             String ticker = inv.getTicker();
             String stockName = inv.getStockName();
             if (ticker == null || ticker.isBlank()) continue;
