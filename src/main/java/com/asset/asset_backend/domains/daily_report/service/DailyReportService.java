@@ -12,7 +12,6 @@ import com.asset.asset_backend.domains.investment.repository.InvestmentRepositor
 import com.asset.asset_backend.domains.investment.service.ExchangeRateService;
 import com.asset.asset_backend.domains.investment.service.StockPriceService;
 import com.asset.asset_backend.domains.news.dto.news.PineconeQueryResponse;
-import com.asset.asset_backend.domains.news.service.NewsCollectorService;
 import com.asset.asset_backend.domains.news.service.PineconeService;
 
 import lombok.RequiredArgsConstructor;
@@ -39,7 +38,6 @@ public class DailyReportService {
     private final StockPriceService stockPriceService;
     private final ExchangeRateService exchangeRateService;
     private final PineconeService pineconeService;
-    private final NewsCollectorService newsCollectorService;
 
     @Transactional
     public DailyReport generateDailyReport(Long userId) {
@@ -51,11 +49,6 @@ public class DailyReportService {
     private DailyReport createNewReport(LocalDate date, Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BaseException(ErrorCode.MEMBER_NOT_FOUND, "User ID: " + userId));
-
-        log.info("[DailyReport] 뉴스 수집 시작 - userId: {}", userId);
-        newsCollectorService.collect(userId);
-        log.info("[DailyReport] 뉴스 임베딩 시작 - userId: {}", userId);
-        newsCollectorService.embedAll();
 
         List<Investment> investments = investmentRepository.findByAsset_UserIdWithAsset(userId);
 

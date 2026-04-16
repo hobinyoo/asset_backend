@@ -19,14 +19,16 @@ public class NewsController {
     @PostMapping("/collect")
     public ResponseEntity<ApiResult<Integer>> collect(
             @AuthenticationPrincipal Long userId) {
-        int count = newsCollectorService.collect(userId);
+        int count = newsCollectorService.collect(userId, null).stream()
+                .mapToInt(r -> r.collected())
+                .sum();
         return ResponseEntity.ok(ApiResult.success(count, "뉴스 수집이 완료되었습니다."));
     }
 
     @PostMapping("/embed")
     public ResponseEntity<ApiResult<Integer>> embed(
             @AuthenticationPrincipal Long userId) {
-        int count = newsCollectorService.embedAll();
+        int count = newsCollectorService.embedAll(null);
         return ResponseEntity.ok(ApiResult.success(count, "임베딩이 완료되었습니다."));
     }
 }

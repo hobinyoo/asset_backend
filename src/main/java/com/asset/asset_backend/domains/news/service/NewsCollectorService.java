@@ -4,6 +4,8 @@ import com.asset.asset_backend.common.enums.MarketType;
 import com.asset.asset_backend.domains.daily_report.service.ClaudeApiService;
 import com.asset.asset_backend.domains.investment.entity.Investment;
 import com.asset.asset_backend.domains.investment.repository.InvestmentRepository;
+import com.asset.asset_backend.domains.news.dto.news.CollectResult;
+import com.asset.asset_backend.domains.news.dto.news.EmbedProgress;
 import com.asset.asset_backend.domains.news.dto.news.PineconeUpsertRequest;
 import com.asset.asset_backend.domains.news.entity.NewsArticle;
 import com.asset.asset_backend.domains.news.repository.NewsArticleRepository;
@@ -32,8 +34,11 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
 
 @Slf4j
 @Service
@@ -60,43 +65,56 @@ public class NewsCollectorService {
     private final ClaudeApiService claudeApiService;
     private final RestTemplate restTemplate;
 
+    public List<Investment> getTopInvestments(Long userId) {
+        List<Investment> investments = investmentRepository.findByAsset_UserIdWithAsset(userId);
+        return Investment.getTopByPurchaseAmount(investments, 10);
+    }
+
     @Transactional
-    public int collect(Long userId) {
+    public List<CollectResult> collect(Long userId, Consumer<CollectResult> callback) {
         List<Investment> investments = investmentRepository.findByAsset_UserIdWithAsset(userId);
         log.info("[NewsCollector] 뉴스 수집 시작 - userId: {}, 보유 종목 수: {}", userId, investments.size());
 
         List<Investment> topInvestments = Investment.getTopByPurchaseAmount(investments, 10);
+        List<CollectResult> results = new ArrayList<>();
+        Set<String> processedTickers = new LinkedHashSet<>();
 
-        int total = 0;
         for (Investment inv : topInvestments) {
             String ticker = inv.getTicker();
             String stockName = inv.getStockName();
             if (ticker == null || ticker.isBlank()) continue;
+            if (!processedTickers.add(ticker)) continue;
 
             log.info("[NewsCollector] 종목 수집 시작 - stockName: {}, ticker: {}, MarketType: {}",
                     stockName, ticker, inv.getMarketType());
             try {
-                int count;
+                CollectResult result;
                 if (inv.getMarketType() == MarketType.DOMESTIC) {
-                    count = collectFromNaver(stockName, ticker);
+                    result = collectFromNaver(stockName, ticker);
                 } else {
-                    count = collectFromGoogleRss(stockName, ticker);
+                    result = collectFromGoogleRss(stockName, ticker);
                 }
-                log.info("[NewsCollector] 종목 수집 완료 - stockName: {}, 저장 건수: {}", stockName, count);
-                total += count;
+                log.info("[NewsCollector] 종목 수집 완료 - stockName: {}, 저장: {}건, 스킵: {}건",
+                        stockName, result.collected(), result.skipped());
+                results.add(result);
+                if (callback != null) callback.accept(result);
             } catch (Exception e) {
                 log.error("[NewsCollector] 수집 실패 - stockName: {}, 원인: {}", stockName, e.getMessage());
+                CollectResult errorResult = new CollectResult(ticker, stockName, 0, 0);
+                results.add(errorResult);
+                if (callback != null) callback.accept(errorResult);
             }
         }
 
-        log.info("[NewsCollector] 뉴스 수집 완료 - 전체 저장 건수: {}", total);
-        return total;
+        int totalCollected = results.stream().mapToInt(CollectResult::collected).sum();
+        log.info("[NewsCollector] 뉴스 수집 완료 - 전체 저장 건수: {}", totalCollected);
+        return results;
     }
 
     @Transactional
-    public int collectFromNaver(String query, String ticker) {
-        log.info("[NewsCollector] 네이버 API 호출 - query: {}", query);
-        String encodeQuery = URLEncoder.encode(query, StandardCharsets.UTF_8);
+    public CollectResult collectFromNaver(String stockName, String ticker) {
+        log.info("[NewsCollector] 네이버 API 호출 - query: {}", stockName);
+        String encodeQuery = URLEncoder.encode(stockName, StandardCharsets.UTF_8);
         URI uri = URI.create(NAVER_NEWS_URL + "?query=" + encodeQuery + "&display=5&sort=sim");
         log.info("[NewsCollector] 네이버 API URL: {}", uri);
 
@@ -113,21 +131,24 @@ public class NewsCollectorService {
         List<Map<String, Object>> items =
                 (List<Map<String, Object>>) response.getBody().get("items");
 
-        if (items == null) return 0;
+        if (items == null) return new CollectResult(ticker, stockName, 0, 0);
         log.info("[NewsCollector] 네이버 응답 - {}건", items.size());
 
         LocalDateTime cutoff = LocalDateTime.now().minusDays(DATE_FILTER_DAYS);
         int saved = 0;
+        int skipped = 0;
         for (Map<String, Object> item : items) {
             String articleUrl = (String) item.get("link");
             if (newsArticleRepository.existsByUrl(articleUrl)) {
                 log.info("[NewsCollector] 중복 URL 스킵 - {}", articleUrl);
+                skipped++;
                 continue;
             }
 
             LocalDateTime publishedAt = parsePublishedAt((String) item.get("pubDate"));
             if (publishedAt != null && publishedAt.isBefore(cutoff)) {
                 log.info("[NewsCollector] 날짜 필터 스킵 - pubDate: {}", item.get("pubDate"));
+                skipped++;
                 continue;
             }
 
@@ -148,14 +169,14 @@ public class NewsCollectorService {
             log.info("[NewsCollector] 저장 완료 - title: {}", title);
             saved++;
         }
-        return saved;
+        return new CollectResult(ticker, stockName, saved, skipped);
     }
 
     @Transactional
-    public int collectFromGoogleRss(String query, String ticker) {
-        log.info("[NewsCollector] Google RSS 호출 - query: {}", query);
+    public CollectResult collectFromGoogleRss(String stockName, String ticker) {
+        log.info("[NewsCollector] Google RSS 호출 - query: {}", stockName);
         String url = UriComponentsBuilder.fromHttpUrl(googleRssBaseUrl)
-                .queryParam("q", query)
+                .queryParam("q", stockName)
                 .queryParam("hl", "en")
                 .queryParam("gl", "US")
                 .queryParam("ceid", "US:en")
@@ -163,9 +184,10 @@ public class NewsCollectorService {
 
         ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
         String xml = response.getBody();
-        if (xml == null) return 0;
+        if (xml == null) return new CollectResult(ticker, stockName, 0, 0);
 
         int saved = 0;
+        int skipped = 0;
         try {
             DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
             Document doc = builder.parse(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)));
@@ -178,6 +200,7 @@ public class NewsCollectorService {
                 String articleUrl = getTagText(item, "link");
                 if (articleUrl == null || newsArticleRepository.existsByUrl(articleUrl)) {
                     log.info("[NewsCollector] 중복 URL 스킵 - {}", articleUrl);
+                    skipped++;
                     continue;
                 }
 
@@ -185,6 +208,7 @@ public class NewsCollectorService {
                 LocalDateTime publishedAt = parsePublishedAt(pubDateStr);
                 if (publishedAt != null && publishedAt.isBefore(cutoff)) {
                     log.info("[NewsCollector] 날짜 필터 스킵 - pubDate: {}", pubDateStr);
+                    skipped++;
                     continue;
                 }
 
@@ -198,23 +222,26 @@ public class NewsCollectorService {
                 saved++;
             }
         } catch (Exception e) {
-            log.error("[NewsCollector] Google RSS 파싱 실패 query={}: {}", query, e.getMessage());
+            log.error("[NewsCollector] Google RSS 파싱 실패 query={}: {}", stockName, e.getMessage());
         }
-        return saved;
+        return new CollectResult(ticker, stockName, saved, skipped);
     }
 
     @Transactional
-    public int embedAll() {
+    public int embedAll(Consumer<EmbedProgress> callback) {
         List<NewsArticle> unembedded = newsArticleRepository.findAllNotEmbedded();
         if (unembedded.isEmpty()) {
             log.info("[NewsCollector] 임베딩할 기사 없음");
             return 0;
         }
 
-        log.info("[NewsCollector] 임베딩 처리 시작 - {}건", unembedded.size());
+        int total = unembedded.size();
+        log.info("[NewsCollector] 임베딩 처리 시작 - {}건", total);
         List<PineconeUpsertRequest.Vector> vectors = new ArrayList<>();
+        int current = 0;
 
         for (NewsArticle article : unembedded) {
+            current++;
             try {
                 String summary = generateSummary(article);
                 List<Float> embedding = embeddingService.embed(summary);
@@ -226,6 +253,9 @@ public class NewsCollectorService {
                 vectors.add(vector);
                 article.markEmbedded();
 
+                if (callback != null) {
+                    callback.accept(new EmbedProgress(article.getTitle(), summary, current, total));
+                }
             } catch (Exception e) {
                 log.error("[NewsCollector] 기사 임베딩 실패 id={}: {}", article.getId(), e.getMessage());
             }
