@@ -1,6 +1,7 @@
 package com.asset.asset_backend.domains.news.service;
 
 import com.asset.asset_backend.common.enums.MarketType;
+import com.asset.asset_backend.domains.daily_report.service.ClaudeApiService;
 import com.asset.asset_backend.domains.investment.entity.Investment;
 import com.asset.asset_backend.domains.investment.repository.InvestmentRepository;
 import com.asset.asset_backend.domains.news.dto.news.PineconeUpsertRequest;
@@ -50,12 +51,13 @@ public class NewsCollectorService {
     private String googleRssBaseUrl;
 
     private static final String NAVER_NEWS_URL = "https://openapi.naver.com/v1/search/news";
-    private static final int DATE_FILTER_DAYS = 7;
+    private static final int DATE_FILTER_DAYS = 30;
 
     private final NewsArticleRepository newsArticleRepository;
     private final InvestmentRepository investmentRepository;
     private final EmbeddingService embeddingService;
     private final PineconeService pineconeService;
+    private final ClaudeApiService claudeApiService;
     private final RestTemplate restTemplate;
 
     @Transactional
@@ -128,17 +130,13 @@ public class NewsCollectorService {
             }
 
             String title = stripHtmlTags((String) item.get("title"));
-            String originalLink = (String) item.get("originallink");
             String description = stripHtmlTags((String) item.get("description"));
 
-            String content = null;
-            if (originalLink != null && !originalLink.isBlank()) {
-                content = crawlContent(originalLink);
-            }
+            String content = crawlContent(articleUrl);
             if (content != null && !content.isBlank()) {
-                log.info("[NewsCollector] 크롤링 성공 - url: {}, contentLength: {}", originalLink, content.length());
+                log.info("[NewsCollector] 크롤링 성공 - url: {}, contentLength: {}", articleUrl, content.length());
             } else {
-                log.warn("[NewsCollector] 크롤링 실패, description fallback - url: {}", originalLink);
+                log.warn("[NewsCollector] 크롤링 실패, description fallback - url: {}", articleUrl);
                 content = description;
             }
 
@@ -216,11 +214,10 @@ public class NewsCollectorService {
 
         for (NewsArticle article : unembedded) {
             try {
-                String text = article.getTitle() + " " +
-                        (article.getContent() != null ? article.getContent() : "");
-                List<Float> embedding = embeddingService.embed(text);
+                String summary = generateSummary(article);
+                List<Float> embedding = embeddingService.embed(summary);
 
-                Map<String, Object> metadata = buildMetadata(article);
+                Map<String, Object> metadata = buildMetadata(article, summary);
                 PineconeUpsertRequest.Vector vector = PineconeUpsertRequest.Vector.of(
                         "news_" + article.getId(), embedding, metadata
                 );
@@ -239,12 +236,31 @@ public class NewsCollectorService {
         return vectors.size();
     }
 
-    private Map<String, Object> buildMetadata(NewsArticle article) {
+    private String generateSummary(NewsArticle article) {
+        try {
+            String contentSnippet = article.getContent() != null
+                    ? article.getContent().substring(0, Math.min(1000, article.getContent().length()))
+                    : "";
+            String prompt = "다음 뉴스 기사를 투자자 관점에서 3줄 이내로 핵심만 요약해줘. 100토큰 이내로.\n" +
+                    "주가 영향, 실적, 리스크, 전망 위주로 핵심만 작성해.\n" +
+                    "[기사 제목]: " + article.getTitle() + "\n" +
+                    "[기사 내용]: " + contentSnippet;
+            String summary = claudeApiService.generateSummary(prompt);
+            log.info("[NewsCollector] 요약 생성 완료 - id={}", article.getId());
+            return summary;
+        } catch (Exception e) {
+            log.warn("[NewsCollector] 요약 생성 실패, title fallback - id={}: {}", article.getId(), e.getMessage());
+            return article.getTitle() != null ? article.getTitle() : "";
+        }
+    }
+
+    private Map<String, Object> buildMetadata(NewsArticle article, String summary) {
         Map<String, Object> metadata = new java.util.HashMap<>();
         metadata.put("title", article.getTitle() != null ? article.getTitle() : "");
         metadata.put("url", article.getUrl() != null ? article.getUrl() : "");
         metadata.put("source", article.getSource() != null ? article.getSource() : "");
         metadata.put("ticker", article.getTicker() != null ? article.getTicker() : "");
+        metadata.put("summary", summary != null ? summary : "");
         metadata.put("publishedAt", article.getPublishedAt() != null
                 ? article.getPublishedAt().toEpochSecond(ZoneOffset.UTC) : 0L);
         return metadata;
@@ -273,7 +289,7 @@ public class NewsCollectorService {
                     .userAgent("Mozilla/5.0")
                     .timeout(5000)
                     .get();
-            String[] selectors = {"#article-view-content-div", ".article-body", "article"};
+            String[] selectors = {"#dic_area", "#article-view-content-div", ".article-body", "article"};
             for (String selector : selectors) {
                 String text = doc.select(selector).text();
                 if (text != null && !text.isBlank()) {

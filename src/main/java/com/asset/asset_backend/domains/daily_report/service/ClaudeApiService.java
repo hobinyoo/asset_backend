@@ -26,6 +26,14 @@ public class ClaudeApiService {
     private final ObjectMapper objectMapper;
 
     public String generateReport(String prompt) {
+        return callClaude(prompt, 4000);
+    }
+
+    public String generateSummary(String prompt) {
+        return callClaude(prompt, 512);
+    }
+
+    private String callClaude(String prompt, int maxTokens) {
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -34,7 +42,7 @@ public class ClaudeApiService {
 
             Map<String, Object> body = Map.of(
                     "model", MODEL,
-                    "max_tokens", 4000,
+                    "max_tokens", maxTokens,
                     "messages", List.of(
                             Map.of("role", "user", "content", prompt)
                     )
@@ -45,7 +53,6 @@ public class ClaudeApiService {
                     CLAUDE_API_URL, HttpMethod.POST, request, Map.class
             );
 
-            // content[0].text 추출
             List<Map<String, Object>> content = (List<Map<String, Object>>) response.getBody().get("content");
             return (String) content.get(0).get("text");
 

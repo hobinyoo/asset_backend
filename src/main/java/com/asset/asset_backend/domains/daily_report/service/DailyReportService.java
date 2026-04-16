@@ -12,7 +12,6 @@ import com.asset.asset_backend.domains.investment.repository.InvestmentRepositor
 import com.asset.asset_backend.domains.investment.service.ExchangeRateService;
 import com.asset.asset_backend.domains.investment.service.StockPriceService;
 import com.asset.asset_backend.domains.news.dto.news.PineconeQueryResponse;
-import com.asset.asset_backend.domains.news.repository.NewsArticleRepository;
 import com.asset.asset_backend.domains.news.service.PineconeService;
 
 import lombok.RequiredArgsConstructor;
@@ -23,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -39,7 +39,6 @@ public class DailyReportService {
     private final StockPriceService stockPriceService;
     private final ExchangeRateService exchangeRateService;
     private final PineconeService pineconeService;
-    private final NewsArticleRepository newsArticleRepository;
 
     @Transactional
     public DailyReport generateDailyReport(Long userId) {
@@ -58,8 +57,21 @@ public class DailyReportService {
             throw new RuntimeException("보유 종목이 없습니다.");
         }
 
-        String stockInfo = buildStockInfo(investments);
-        String newsContext = buildNewsContext(investments);
+        List<Investment> topInvestments = investments.stream()
+                .collect(Collectors.groupingBy(Investment::getTicker))
+                .entrySet().stream()
+                .sorted(Comparator.comparingLong(e -> -e.getValue().stream()
+                        .filter(i -> i.getPurchasePrice() != null && i.getQuantity() != null)
+                        .mapToLong(i -> (long) i.getPurchasePrice() * i.getQuantity())
+                        .sum()))
+                .limit(10)
+                .flatMap(e -> e.getValue().stream())
+                .collect(Collectors.toList());
+
+        log.info("[DailyReport] 전체 종목 {}개 → 상위 10개 ticker로 필터링", investments.size());
+
+        String stockInfo = buildStockInfo(topInvestments);
+        String newsContext = buildNewsContext(topInvestments);
 
         log.info("Claude API 호출 시작 - 전체 리포트");
         String fullContent = claudeApiService.generateReport(buildFullPrompt(date, stockInfo, newsContext));
@@ -121,54 +133,60 @@ public class DailyReportService {
     }
 
     private String buildNewsContext(List<Investment> investments) {
-        List<String> tickers = investments.stream()
-                .map(Investment::getTicker)
-                .filter(t -> t != null && !t.isBlank())
-                .distinct()
-                .collect(Collectors.toList());
+        Map<String, String> tickerToName = investments.stream()
+                .filter(inv -> inv.getTicker() != null && !inv.getTicker().isBlank())
+                .collect(Collectors.toMap(
+                        Investment::getTicker,
+                        Investment::getStockName,
+                        (a, b) -> a
+                ));
 
-        if (tickers.isEmpty()) {
+        if (tickerToName.isEmpty()) {
             log.info("[DailyReport] 뉴스 수집 대상 ticker 없음");
             return "";
         }
 
-        long filterTimestamp = LocalDateTime.now().minusDays(7).toEpochSecond(ZoneOffset.UTC);
-        Map<String, Object> filter = Map.of("publishedAt", Map.of("$gte", filterTimestamp));
-
-        log.info("[DailyReport] 뉴스 수집 시작 - tickers={}, filterTimestamp={}", tickers, filterTimestamp);
+        long filterTimestamp = LocalDateTime.now().minusDays(14).toEpochSecond(ZoneOffset.UTC);
+        log.info("[DailyReport] 뉴스 수집 시작 - tickers={}, filterTimestamp={}", tickerToName.keySet(), filterTimestamp);
 
         StringBuilder sb = new StringBuilder("[관련 뉴스]\n");
-        boolean[] hasAny = {false};
+        boolean hasAny = false;
 
-        for (String ticker : tickers) {
+        for (Map.Entry<String, String> entry : tickerToName.entrySet()) {
+            String ticker = entry.getKey();
+            String stockName = entry.getValue();
+
+            Map<String, Object> filter = Map.of(
+                    "publishedAt", Map.of("$gte", filterTimestamp),
+                    "ticker", ticker
+            );
+
             try {
-                PineconeQueryResponse result = pineconeService.query(ticker, 3, filter);
+                String query = stockName + " 주가 실적 투자 리스크 전망 시장 영향";
+                PineconeQueryResponse result = pineconeService.query(query, 1, filter);
                 if (result.getMatches() == null || result.getMatches().isEmpty()) {
                     log.info("[DailyReport] ticker={} 조회 결과 없음", ticker);
                     continue;
                 }
 
-                log.info("[DailyReport] ticker={} 조회 결과 {}건", ticker, result.getMatches().size());
+                log.info("[DailyReport] stockName={} ticker={} 조회 결과 {}건", stockName, ticker, result.getMatches().size());
                 for (PineconeQueryResponse.Match match : result.getMatches()) {
-                    String rawId = match.getId(); // "news_44"
-                    try {
-                        Long articleId = Long.parseLong(rawId.replace("news_", ""));
-                        newsArticleRepository.findById(articleId).ifPresent(article -> {
-                            log.info("[DailyReport] ticker={} 뉴스 - title={}", ticker, article.getTitle());
-                            sb.append(String.format("- [%s] %s\n%s\n\n",
-                                    ticker, article.getTitle(), article.getContent()));
-                            hasAny[0] = true;
-                        });
-                    } catch (NumberFormatException e) {
-                        log.warn("[DailyReport] 잘못된 Pinecone ID - {}", rawId);
-                    }
+                    Map<String, Object> metadata = match.getMetadata();
+                    if (metadata == null) continue;
+                    String title = (String) metadata.getOrDefault("title", "");
+                    String summary = (String) metadata.getOrDefault("summary", "");
+                    if (title.isBlank() && summary.isBlank()) continue;
+                    log.info("[DailyReport] ticker={} 뉴스 - title={}", ticker, title);
+                    sb.append(String.format("- [%s] %s\n%s\n\n",
+                            stockName, title, summary.isBlank() ? title : summary));
+                    hasAny = true;
                 }
             } catch (Exception e) {
                 log.warn("[DailyReport] ticker={} 뉴스 조회 실패: {}", ticker, e.getMessage());
             }
         }
 
-        return hasAny[0] ? sb.toString().trim() : "";
+        return hasAny ? sb.toString().trim() : "";
     }
 
     private String buildFullPrompt(LocalDate date, String stockInfo, String newsContext) {
