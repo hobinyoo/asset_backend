@@ -10,6 +10,9 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Entity
 @Table(name = "investment")
@@ -65,6 +68,19 @@ public class Investment {
         investment.purchaseAmount = purchaseAmount;
         investment.marketType = marketType;
         return investment;
+    }
+
+    public static List<Investment> getTopByPurchaseAmount(List<Investment> investments, int limit) {
+        return investments.stream()
+                .collect(Collectors.groupingBy(Investment::getTicker))
+                .entrySet().stream()
+                .sorted(Comparator.comparingLong(e -> -e.getValue().stream()
+                        .filter(i -> i.getPurchasePrice() != null && i.getQuantity() != null)
+                        .mapToLong(i -> (long) i.getPurchasePrice() * i.getQuantity())
+                        .sum()))
+                .limit(limit)
+                .flatMap(e -> e.getValue().stream())
+                .collect(Collectors.toList());
     }
 
     public void updateInvestmentInfo(Asset asset, String category, String stockName, String ticker,
