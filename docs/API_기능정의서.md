@@ -20,7 +20,8 @@
 5. [일일 리포트 (Daily Report)](#5-일일-리포트-daily-report)
 6. [스냅샷 (Snapshot)](#6-스냅샷-snapshot)
 7. [사용자 설정 (Config)](#7-사용자-설정-config)
-8. [스케줄러 (Scheduler)](#8-스케줄러-scheduler)
+8. [뉴스 (News)](#8-뉴스-news)
+9. [스케줄러 (Scheduler)](#9-스케줄러-scheduler)
 
 ---
 
@@ -682,7 +683,54 @@
 
 ---
 
-### 5-2. 리포트 목록 조회
+### 5-2. 리포트 생성 (SSE 스트리밍)
+
+| 항목 | 내용 |
+|------|------|
+| **URL** | `GET /api/reports/generate/stream` |
+| **인증 필요** | O |
+| **Content-Type** | `text/event-stream` |
+| **타임아웃** | 5분 |
+
+**응답**: Server-Sent Events 스트림 (JSON 직렬화된 `ProgressEvent` 레코드)
+
+```json
+{
+  "type":      "COLLECT | EMBED | REPORT | ERROR",
+  "status":    "START | PROGRESS | DONE | COMPLETE | ERROR",
+  "ticker":    "종목 티커 (COLLECT 단계만)",
+  "stockName": "종목명 (COLLECT 단계만)",
+  "message":   "진행 메시지",
+  "current":   1,
+  "total":     10,
+  "data":      null
+}
+```
+
+**이벤트 흐름**
+
+| 순서 | type | status | data 필드 |
+|------|------|--------|-----------|
+| 1 | COLLECT | START | 상위 종목 목록 (`[{ticker, stockName}]`) |
+| 2~N | COLLECT | PROGRESS | null (message에 수집 건수) |
+| N+1 | COLLECT | DONE | null |
+| N+2 | EMBED | START | null |
+| N+3~M | EMBED | PROGRESS | `{title, summary}` |
+| M+1 | EMBED | DONE | null |
+| M+2 | REPORT | START | null |
+| M+3 | REPORT | COMPLETE | `DailyReportResponse` 전체 |
+| (오류) | ERROR | ERROR | null (message에 오류 내용) |
+
+**비즈니스 로직**
+1. 매수금액 상위 10개 투자 종목 조회
+2. 종목별 네이버 뉴스 수집 → DB 저장 (COLLECT)
+3. 수집된 뉴스 Claude API 요약 + Pinecone 벡터 임베딩 (EMBED)
+4. Claude API로 전체 리포트 + 요약 리포트 생성 → DB 저장 (REPORT)
+5. 당일 리포트가 이미 존재하면 뉴스 수집/임베딩을 거쳐 재생성하지 않고 기존 반환
+
+---
+
+### 5-3. 리포트 목록 조회
 
 | 항목 | 내용 |
 |------|------|
@@ -693,7 +741,7 @@
 
 ---
 
-### 5-3. 날짜별 리포트 조회
+### 5-4. 날짜별 리포트 조회
 
 | 항목 | 내용 |
 |------|------|
@@ -816,14 +864,50 @@
 
 ---
 
-## 8. 스케줄러 (Scheduler)
+## 8. 뉴스 (News)
+
+### 8-1. 뉴스 수집
+
+| 항목 | 내용 |
+|------|------|
+| **URL** | `POST /api/news/collect` |
+| **인증 필요** | O |
+
+**응답 바디**: `data: Integer` (수집된 뉴스 건수)
+
+**비즈니스 로직**
+- 매수금액 상위 10개 투자 종목 조회 (userId 기반)
+- 종목별 네이버 뉴스 API로 최근 14일 기사 수집 (검색 필터 7일)
+- 이미 수집된 URL은 스킵 (중복 방지)
+- 총 저장된 기사 수 반환
+
+---
+
+### 8-2. 뉴스 임베딩
+
+| 항목 | 내용 |
+|------|------|
+| **URL** | `POST /api/news/embed` |
+| **인증 필요** | O |
+
+**응답 바디**: `data: Integer` (임베딩 처리된 뉴스 건수)
+
+**비즈니스 로직**
+- 임베딩되지 않은 뉴스 기사 전체 조회
+- Claude API로 기사 요약 생성
+- Pinecone 벡터 DB에 임베딩 upsert
+- 처리된 기사 수 반환
+
+---
+
+## 9. 스케줄러 (Scheduler)
 
 > 모든 스케줄러는 **매일 자정 (`0 0 0 * * *`)** 자동 실행됩니다.
 > 수동 실행은 각 도메인 API를 통해 트리거할 수 있습니다.
 
 ---
 
-### 8-1. 자산 월납입 처리 (AssetPaymentScheduler)
+### 9-1. 자산 월납입 처리 (AssetPaymentScheduler)
 
 | 항목 | 내용 |
 |------|------|
@@ -838,7 +922,7 @@
 
 ---
 
-### 8-2. 부채 월상환 처리 (DebtPaymentScheduler)
+### 9-2. 부채 월상환 처리 (DebtPaymentScheduler)
 
 | 항목 | 내용 |
 |------|------|
